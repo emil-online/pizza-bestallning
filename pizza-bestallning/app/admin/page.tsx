@@ -9,88 +9,115 @@ type DbOrder = {
   status: "Ny" | "Tillagas" | "Klar" | string;
   customer_name: string | null;
   customer_phone: string | null;
-  items: { name: string; qty: number }[] | any; // jsonb
+  items: { name: string; qty: number; comment?: string }[] | any; // jsonb
   total: number | null;
   archived_at: string | null;
 };
 
-const ADMIN_PIN = "12345";
 const NEW_ORDER_SOUND =
   "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
+
+// ✅ PIN (MVP)
+const ADMIN_PIN = "1234";
+const ADMIN_AUTH_KEY = "admin-auth-ok"; // localStorage key
 
 function formatTimeFromIso(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 }
 
-function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
+export default function AdminPage() {
+  // ---------- PIN gate ----------
+  const [isAuthed, setIsAuthed] = useState(false);
   const [pin, setPin] = useState("");
+  const [remember, setRemember] = useState(true);
   const [pinError, setPinError] = useState("");
 
-  function tryLogin() {
+  useEffect(() => {
+    const ok = localStorage.getItem(ADMIN_AUTH_KEY);
+    if (ok === "1") setIsAuthed(true);
+  }, []);
+
+  function submitPin() {
     if (pin === ADMIN_PIN) {
-      onSuccess();
-    } else {
-      setPinError("Fel kod");
+      setIsAuthed(true);
+      setPinError("");
+      if (remember) localStorage.setItem(ADMIN_AUTH_KEY, "1");
+      else localStorage.removeItem(ADMIN_AUTH_KEY);
+      setPin("");
+      return;
     }
+    setPinError("Fel PIN. Försök igen.");
   }
 
-  return (
-    <main className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
-        <h1 className="mb-1 text-2xl font-bold text-center text-gray-900">
-          Admininloggning
-        </h1>
-        <p className="mb-5 text-center text-sm text-slate-600">
-          Ange din kod för att se orderlistan.
-        </p>
+  function logout() {
+    localStorage.removeItem(ADMIN_AUTH_KEY);
+    setIsAuthed(false);
+    setPin("");
+    setPinError("");
+  }
 
-        <label className="mb-2 block text-sm font-medium text-gray-800">
-          Kod
-        </label>
-        <input
-          type="password"
-          placeholder="•••••"
-          value={pin}
-          onChange={(e) => {
-            setPin(e.target.value);
-            if (pinError) setPinError("");
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") tryLogin();
-          }}
-          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-gray-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-        />
+  if (!isAuthed) {
+    return (
+      <main className="min-h-screen bg-amber-50 p-6">
+        <div className="mx-auto max-w-md">
+          <div className="rounded-2xl bg-white p-6 shadow-sm border border-amber-100">
+            <h1 className="text-2xl font-bold text-gray-900">Admin</h1>
+            <p className="mt-1 text-slate-600">Ange PIN för att komma in.</p>
 
-        {pinError && (
-          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {pinError}
+            <label className="mt-6 block text-sm font-medium text-gray-700">
+              PIN
+            </label>
+            <input
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="1234"
+              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitPin();
+              }}
+            />
+
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                id="remember"
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              <label htmlFor="remember" className="text-sm text-gray-700">
+                Kom ihåg mig på den här enheten
+              </label>
+            </div>
+
+            {pinError && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {pinError}
+              </div>
+            )}
+
+            <button
+              onClick={submitPin}
+              className="mt-5 w-full rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700"
+            >
+              Logga in
+            </button>
           </div>
-        )}
-
-        <button
-          onClick={tryLogin}
-          className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800"
-        >
-          Logga in
-        </button>
-
-        <div className="mt-4 text-center text-xs text-slate-500">
-          Tips: koden är 12345 (MVP)
         </div>
-      </div>
-    </main>
-  );
-}
+      </main>
+    );
+  }
 
-function AdminInner() {
+  // ---------- Admin app ----------
   const [showArchive, setShowArchive] = useState(false);
   const [orders, setOrders] = useState<DbOrder[]>([]);
   const [archived, setArchived] = useState<DbOrder[]>([]);
 
-  // Första laddningen (visar "Laddar...")
+  // Första laddningen
   const [loading, setLoading] = useState(true);
-  // Bakgrundsuppdatering (visar diskret text utan layout shift)
+  // Bakgrundsuppdatering (utan hopp)
   const [refreshing, setRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
@@ -133,7 +160,7 @@ function AdminInner() {
     const activeSafe = (active ?? []) as DbOrder[];
     const arcSafe = (arc ?? []) as DbOrder[];
 
-    // Pling vid NYA ordrar (bara efter första laddningen)
+    // 🔔 Pling vid NYA ordrar (efter första laddningen)
     if (initialLoadedRef.current) {
       const prevIds = lastSeenIdsRef.current;
       const hasNew = activeSafe.some((o) => !prevIds.has(o.id));
@@ -199,7 +226,7 @@ function AdminInner() {
       )
       .subscribe();
 
-    // Fallback: poll mer sällan
+    // Fallback poll
     const t = window.setInterval(fetchOrders, 15000);
 
     return () => {
@@ -209,60 +236,39 @@ function AdminInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function statusBadge(status: DbOrder["status"]) {
-    if (status === "Ny") {
-      return (
-        <span className="rounded-full bg-blue-100 text-blue-800 px-2.5 py-1 text-xs font-bold border border-blue-200">
-          NY
-        </span>
-      );
-    }
-    if (status === "Tillagas") {
-      return (
-        <span className="rounded-full bg-amber-100 text-amber-900 px-2.5 py-1 text-xs font-bold border border-amber-200">
-          TILLAGAS
-        </span>
-      );
-    }
-    if (status === "Klar") {
-      return (
-        <span className="rounded-full bg-emerald-100 text-emerald-900 px-2.5 py-1 text-xs font-bold border border-emerald-200">
-          KLAR
-        </span>
-      );
-    }
-    return (
-      <span className="rounded-full bg-slate-100 text-slate-800 px-2.5 py-1 text-xs font-bold border border-slate-200">
-        {status}
-      </span>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-slate-100 p-6">
+    <main className="min-h-screen bg-amber-50 p-6">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Admin – Orderlista
-            </h1>
-            <p className="mt-1 text-slate-600">
-              {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} (Supabase)
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Admin – Orderlista
+          </h1>
 
-          <button
-            onClick={() => setShowArchive((s) => !s)}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-slate-50"
-          >
-            {showArchive ? "Visa aktiva" : "Visa arkiv"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowArchive((s) => !s)}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50"
+            >
+              {showArchive ? "Visa aktiva" : "Visa arkiv"}
+            </button>
+            <button
+              onClick={logout}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50"
+              title="Logga ut"
+            >
+              Logga ut
+            </button>
+          </div>
         </div>
 
-        {/* Reserv: listan hoppar inte */}
+        <p className="mt-1 text-slate-600">
+          {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} (Supabase)
+        </p>
+
+        {/* Reserverar ALLTID plats så listan inte hoppar */}
         {!loading && (
           <div
-            className={`mt-3 h-5 text-sm text-slate-600 transition-opacity ${
+            className={`mt-3 h-5 text-sm text-slate-500 transition-opacity ${
               refreshing ? "opacity-100" : "opacity-0"
             }`}
           >
@@ -271,78 +277,87 @@ function AdminInner() {
         )}
 
         {loading && (
-          <div className="mt-6 rounded-2xl bg-white p-4 text-slate-700 shadow-sm border border-slate-200">
+          <div className="mt-6 rounded-2xl bg-white p-4 text-slate-600 shadow-sm border border-amber-100">
             Laddar...
           </div>
         )}
 
         {!loading && visible.length === 0 && (
-          <div className="mt-10 text-center text-slate-600">
+          <div className="mt-10 text-center text-slate-500">
             {showArchive ? "Inga arkiverade ordrar ännu." : "Inga ordrar ännu."}
           </div>
         )}
 
         <div className="mt-6 space-y-4">
           {visible.map((o) => {
-            const items: { name: string; qty: number }[] = Array.isArray(o.items)
-              ? o.items
-              : [];
+            const items: { name: string; qty: number; comment?: string }[] =
+              Array.isArray(o.items) ? o.items : [];
             const time = formatTimeFromIso(o.created_at);
-
-            const isNew = !showArchive && o.status === "Ny";
 
             return (
               <div
                 key={o.id}
-                className={`relative rounded-2xl p-5 shadow-sm border ${
-                  isNew
-                    ? "bg-white border-blue-200"
-                    : "bg-white border-slate-200"
+                className={`relative rounded-2xl p-5 shadow-sm border-2 ${
+                  !showArchive && o.status === "Ny"
+                    ? "bg-yellow-50 border-yellow-400"
+                    : "bg-white border-amber-100"
                 }`}
               >
                 {!showArchive && (
                   <button
                     onClick={() => archiveOrder(o.id)}
-                    className="absolute right-3 top-3 rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm text-gray-900 hover:bg-slate-50"
+                    className="absolute right-3 top-3 rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-50"
                     title="Arkivera order"
                   >
                     Arkivera
                   </button>
                 )}
 
-                <div className="text-sm text-slate-600">Order • {time}</div>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="text-lg font-semibold text-gray-900">
-                    Status: {o.status}
-                  </div>
-                  {statusBadge(o.status)}
+                <div className="text-sm text-slate-600">
+                  Order • {time}
                 </div>
 
-                <div className="mt-2 text-sm text-slate-700">
-                  <span className="font-medium text-gray-900">
-                    {o.customer_name ?? "Kund"}
-                  </span>{" "}
-                  • {o.customer_phone ?? "—"}
+                <div className="mt-1 text-lg font-semibold flex items-center gap-2 text-gray-900">
+                  <span>Status: {o.status}</span>
+                  {!showArchive && o.status === "Ny" && (
+                    <span className="rounded-full bg-yellow-400 px-2 py-0.5 text-xs font-bold">
+                      NY
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-2 text-sm text-slate-600">
+                  {(o.customer_name ?? "Kund")} • {(o.customer_phone ?? "—")}
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="font-semibold text-gray-900">Innehåll</div>
-                  <ul className="mt-2 space-y-1 text-slate-800">
+                  <div className="font-medium text-gray-900">Innehåll</div>
+
+                  <ul className="mt-2 space-y-2 text-slate-800">
                     {items.map((it, idx) => (
-                      <li key={idx}>
-                        <span className="font-semibold text-gray-900">
-                          {it.qty}×
-                        </span>{" "}
-                        {it.name}
+                      <li key={idx} className="rounded-xl border border-slate-200 p-3">
+                        <div className="font-medium text-gray-900">
+                          {it.qty}× {it.name}
+                        </div>
+                        {it.comment?.trim() ? (
+                          <div className="mt-1 text-sm text-slate-600">
+                            Kommentar: {it.comment}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-sm text-slate-400">
+                            Ingen kommentar
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
 
                   {typeof o.total === "number" && (
-                    <div className="mt-3 text-sm text-slate-700">
-                      Totalt:{" "}
-                      <span className="font-semibold text-gray-900">
+                    <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <span className="text-sm font-semibold text-slate-700">
+                        Totalt
+                      </span>
+                      <span className="text-lg font-bold text-gray-900">
                         {o.total} kr
                       </span>
                     </div>
@@ -350,16 +365,16 @@ function AdminInner() {
                 </div>
 
                 {!showArchive && (
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-4 flex gap-2">
                     <button
                       onClick={() => setStatus(o.id, "Tillagas")}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-gray-900 font-medium hover:bg-slate-50"
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 hover:bg-slate-50"
                     >
                       Tillagas
                     </button>
                     <button
                       onClick={() => setStatus(o.id, "Klar")}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-gray-900 font-medium hover:bg-slate-50"
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 hover:bg-slate-50"
                     >
                       Klar
                     </button>
@@ -372,14 +387,4 @@ function AdminInner() {
       </div>
     </main>
   );
-}
-
-export default function AdminPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  if (!isLoggedIn) {
-    return <AdminLogin onSuccess={() => setIsLoggedIn(true)} />;
-  }
-
-  return <AdminInner />;
 }
