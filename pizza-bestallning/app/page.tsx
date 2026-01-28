@@ -26,6 +26,69 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+/** ---------- UI helpers (enkelt, i samma fil) ---------- */
+function cx(...classes: Array<string | false | undefined | null>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function Card({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        "rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Button({
+  children,
+  onClick,
+  className,
+  variant = "secondary",
+  disabled,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  variant?: "primary" | "secondary" | "ghost";
+  disabled?: boolean;
+  title?: string;
+}) {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold " +
+    "transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed";
+  const variants: Record<string, string> = {
+    primary:
+      "bg-amber-600 text-white hover:bg-amber-700 shadow-sm shadow-amber-600/10",
+    secondary:
+      "bg-white text-slate-900 ring-1 ring-slate-300 hover:bg-slate-50",
+    ghost: "bg-transparent text-slate-700 hover:bg-slate-100",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={cx(base, variants[variant], className)}
+      disabled={disabled}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+/** ------------------------------------------------------ */
+
 export default function Home() {
   const router = useRouter();
 
@@ -70,7 +133,9 @@ export default function Home() {
   }
 
   function updateComment(cartUid: string, comment: string) {
-    setCart((prev) => prev.map((x) => (x.uid === cartUid ? { ...x, comment } : x)));
+    setCart((prev) =>
+      prev.map((x) => (x.uid === cartUid ? { ...x, comment } : x))
+    );
   }
 
   function clearCart() {
@@ -104,119 +169,189 @@ export default function Home() {
   }, [cart]);
 
   return (
-    <main className="min-h-screen bg-amber-50">
-      <div className="mx-auto max-w-5xl p-6">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            🍕 Pizzeria – Onlinebeställning
-          </h1>
-          <p className="mt-1 text-slate-600">
-            Välj din pizza, skriv kommentar per pizza och gå vidare till kvitto.
-          </p>
-        </header>
+    <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
+      {/* Header */}
+      <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-6 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+                Pizzeria • Onlinebeställning
+              </h1>
+              <p className="mt-2 text-slate-600">
+                Välj pizza, lägg kommentar per pizza och gå vidare till checkout.
+              </p>
+            </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-amber-100 px-4 py-2 ring-1 ring-amber-200">
+                <div className="text-xs font-semibold text-amber-900">
+                  Totalt
+                </div>
+                <div className="text-lg font-extrabold text-amber-950">
+                  {total} kr
+                </div>
+              </div>
+              <Button
+                onClick={goToCheckout}
+                variant="primary"
+                disabled={cartLines.length === 0}
+                className="py-3"
+                title={cartLines.length === 0 ? "Lägg till något först" : "Gå vidare"}
+              >
+                Beställ
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-6xl px-6 py-6">
+        <div className="grid gap-6 lg:grid-cols-2">
           {/* MENY */}
-          <section className="rounded-2xl bg-white p-5 shadow-sm border border-amber-100">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900">Meny</h2>
+          <Card className="p-5">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Meny</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Tryck “Lägg till” för att lägga en pizza i varukorgen.
+                </p>
+              </div>
+            </div>
+
             <ul className="space-y-3">
               {MENU.map((item) => (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4"
+                  className="flex items-center justify-between gap-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200"
                 >
-                  <div>
-                    <div className="font-medium text-gray-900">{item.name}</div>
-                    <div className="text-sm text-slate-600">{item.price} kr</div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 truncate">
+                      {item.name}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-600">
+                      {item.price} kr
+                    </div>
                   </div>
 
-                  <button
-                    onClick={() => addToCart(item.id)}
-                    className="rounded-xl bg-amber-600 px-4 py-2 text-white font-medium hover:bg-amber-700"
-                  >
-                    Lägg till
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => addToCart(item.id)}
+                      variant="primary"
+                      className="whitespace-nowrap"
+                    >
+                      Lägg till
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
 
           {/* VARUKORG */}
-          <section className="rounded-2xl bg-white p-5 shadow-sm border border-amber-100">
+          <Card className="p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">Varukorg</h2>
-              <button
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Varukorg</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Varje pizza kan ha sin egen kommentar.
+                </p>
+              </div>
+
+              <Button
                 onClick={clearCart}
-                className="text-sm text-slate-600 hover:text-slate-900"
+                variant="ghost"
+                className="px-3"
+                disabled={cartLines.length === 0}
+                title="Töm varukorgen"
               >
                 Töm
-              </button>
+              </Button>
             </div>
 
             {cartLines.length === 0 ? (
-              <p className="text-slate-600">Varukorgen är tom.</p>
+              <div className="rounded-2xl bg-slate-50 p-6 text-center ring-1 ring-slate-200">
+                <div className="text-lg font-semibold text-slate-900">
+                  Varukorgen är tom
+                </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  Välj en pizza i menyn så dyker den upp här.
+                </div>
+              </div>
             ) : (
               <div className="space-y-3">
                 {/* Visar varje pizza som en egen rad (för egen kommentar) */}
                 {cartLines.map(({ uid: lineUid, item, comment }) => (
                   <div
                     key={lineUid}
-                    className="rounded-xl border border-slate-200 p-4"
+                    className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="font-medium text-gray-900">{item.name}</div>
-                        <div className="text-sm text-slate-600">{item.price} kr</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 truncate">
+                          {item.name}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {item.price} kr
+                        </div>
                       </div>
 
-                      <button
+                      <Button
                         onClick={() => removeByUid(lineUid)}
-                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+                        variant="secondary"
+                        className="px-3 py-2"
                         title="Ta bort just denna pizza"
                       >
                         Ta bort
-                      </button>
+                      </Button>
                     </div>
 
-                    <div className="mt-3">
-                      <label className="text-sm font-medium text-gray-800">
+                    <div className="mt-4">
+                      <label className="text-sm font-semibold text-slate-800">
                         Kommentar (för just denna pizza)
                       </label>
                       <input
                         value={comment}
                         onChange={(e) => updateComment(lineUid, e.target.value)}
                         placeholder="t.ex. ingen lök"
-                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-gray-900 placeholder:text-slate-400"
+                        className={cx(
+                          "mt-2 w-full rounded-xl bg-white px-3 py-2 text-slate-900",
+                          "ring-1 ring-slate-300 placeholder:text-slate-400",
+                          "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        )}
                       />
                     </div>
                   </div>
                 ))}
 
-                {/* En liten “+/- per sort” (valfritt men smidigt) */}
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <div className="text-sm font-semibold text-gray-900 mb-2">
+                {/* Snabb justering */}
+                <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <div className="text-sm font-bold text-slate-900 mb-3">
                     Snabb justering (antal per sort)
                   </div>
                   <div className="space-y-2">
                     {MENU.filter((m) => (qtyById[m.id] ?? 0) > 0).map((m) => (
-                      <div key={m.id} className="flex items-center justify-between">
-                        <div className="text-sm text-slate-700">
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <div className="text-sm font-medium text-slate-800">
                           {m.name}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => removeOne(m.id)}
-                            className="h-9 w-9 rounded-xl border border-slate-300 hover:bg-slate-50"
+                            className="h-10 w-10 rounded-xl bg-white ring-1 ring-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                             aria-label={`Ta bort en ${m.name}`}
                           >
                             −
                           </button>
-                          <div className="w-6 text-center font-semibold">
+                          <div className="w-8 text-center font-extrabold text-slate-900">
                             {qtyById[m.id]}
                           </div>
                           <button
                             onClick={() => addToCart(m.id)}
-                            className="h-9 w-9 rounded-xl border border-slate-300 hover:bg-slate-50"
+                            className="h-10 w-10 rounded-xl bg-white ring-1 ring-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                             aria-label={`Lägg till en ${m.name}`}
                           >
                             +
@@ -227,20 +362,23 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t pt-4">
-                  <div className="text-lg font-semibold text-gray-900">Totalt</div>
-                  <div className="text-lg font-bold text-gray-900">{total} kr</div>
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-4 ring-1 ring-slate-200">
+                  <div className="text-sm font-semibold text-slate-700">Totalt</div>
+                  <div className="text-xl font-extrabold text-slate-900">
+                    {total} kr
+                  </div>
                 </div>
 
-                <button
+                <Button
                   onClick={goToCheckout}
-                  className="w-full rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700"
+                  variant="primary"
+                  className="w-full py-3 text-base"
                 >
                   Beställ
-                </button>
+                </Button>
               </div>
             )}
-          </section>
+          </Card>
         </div>
       </div>
     </main>
