@@ -93,25 +93,97 @@ function Button({
   );
 }
 
-function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "new" | "cooking" | "done" }) {
+function Badge({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "new" | "cooking" | "done" | "comment";
+}) {
   const tones: Record<string, string> = {
     neutral: "bg-slate-100 text-slate-700 ring-1 ring-slate-200",
     new: "bg-amber-100 text-amber-900 ring-1 ring-amber-200",
     cooking: "bg-sky-100 text-sky-900 ring-1 ring-sky-200",
     done: "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200",
+    comment: "bg-yellow-100 text-yellow-900 ring-1 ring-yellow-200",
   };
   return (
-    <span className={cx("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold", tones[tone])}>
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold",
+        tones[tone]
+      )}
+    >
       {children}
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: DbOrder["status"] }) {
-  if (status === "Ny") return <Badge tone="new">Ny</Badge>;
-  if (status === "Tillagas") return <Badge tone="cooking">Tillagas</Badge>;
-  if (status === "Klar") return <Badge tone="done">Klar</Badge>;
-  return <Badge tone="neutral">{status}</Badge>;
+  // Tillåt att status innehåller extra info, t.ex. "Tillagas • 15 min"
+  const s = String(status ?? "");
+  if (s === "Ny" || s.startsWith("Ny ")) return <Badge tone="new">Ny</Badge>;
+  if (s === "Klar" || s.startsWith("Klar ")) return <Badge tone="done">Klar</Badge>;
+  if (s === "Tillagas" || s.startsWith("Tillagas"))
+    return <Badge tone="cooking">Tillagas</Badge>;
+  return <Badge tone="neutral">{s}</Badge>;
+}
+
+function parseEtaLabel(status: string) {
+  // Förväntar t.ex. "Tillagas • 15 min" eller "Tillagas • 1h+"
+  const m = status.match(/Tillagas\s*[•\-]\s*(.+)$/i);
+  return m?.[1]?.trim() || "";
+}
+
+function EtaSelect({
+  value,
+  onSelect,
+  disabled,
+}: {
+  value?: string;
+  onSelect: (label: string) => void;
+  disabled?: boolean;
+}) {
+  const options = [
+    "5 min",
+    "10 min",
+    "15 min",
+    "20 min",
+    "25 min",
+    "30 min",
+    "40 min",
+    "45 min",
+    "50 min",
+    "60 min",
+    "1h+",
+  ];
+
+  return (
+    <div className="flex items-center gap-2">
+      <label className="text-xs font-semibold text-slate-600">Klar om</label>
+      <select
+        value={value ?? ""}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v) onSelect(v);
+        }}
+        disabled={disabled}
+        className={cx(
+          "h-10 rounded-xl bg-white px-3 text-sm font-semibold text-slate-900",
+          "ring-1 ring-slate-300 hover:bg-slate-50",
+          "focus:outline-none focus:ring-2 focus:ring-amber-500",
+          disabled && "opacity-60 cursor-not-allowed"
+        )}
+      >
+        <option value="">Välj tid…</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 /** ------------------------------------------------------ */
@@ -138,65 +210,55 @@ export default function AdminPage() {
 
 function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
   const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
   const [remember, setRemember] = useState(true);
-  const [pinError, setPinError] = useState("");
 
   function submitPin() {
-    if (pin === ADMIN_PIN) {
-      setPinError("");
-      if (remember) localStorage.setItem(ADMIN_AUTH_KEY, "1");
-      else localStorage.removeItem(ADMIN_AUTH_KEY);
-      setPin("");
-      onAuthed();
+    setPinError(null);
+    if (pin.trim() !== ADMIN_PIN) {
+      setPinError("Fel PIN-kod. Försök igen.");
       return;
     }
-    setPinError("Fel PIN. Försök igen.");
+    if (remember) localStorage.setItem(ADMIN_AUTH_KEY, "1");
+    onAuthed();
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
       <div className="mx-auto max-w-md px-6 py-12">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-amber-100 ring-1 ring-amber-200 flex items-center justify-center">
-            <span className="text-xl">🛠️</span>
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm">
+            <span className="text-2xl">🍕</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            Admin
+            Adminsida il-forno
           </h1>
-          <p className="mt-2 text-slate-600">
-            Logga in med PIN för att se och hantera beställningar.
+          <p className="mt-2 text-sm text-slate-600">
+            Logga in med PIN för att hantera beställningar.
           </p>
         </div>
 
         <Card className="p-6">
-          <label className="block text-sm font-semibold text-slate-800">
-            PIN
-          </label>
+          <label className="text-sm font-semibold text-slate-800">PIN-kod</label>
           <input
+            type="password"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            placeholder="1234"
-            className={cx(
-              "mt-2 w-full rounded-xl bg-white px-4 py-3 text-lg text-slate-900",
-              "ring-1 ring-slate-300 placeholder:text-slate-400",
-              "focus:outline-none focus:ring-2 focus:ring-amber-500"
-            )}
             onKeyDown={(e) => {
               if (e.key === "Enter") submitPin();
             }}
+            className="mt-2 w-full rounded-xl bg-white px-4 py-3 text-base ring-1 ring-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            placeholder="••••"
           />
 
-          <div className="mt-4 flex items-center gap-3">
-            <input
-              id="remember"
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-            />
-            <label htmlFor="remember" className="text-sm text-slate-700">
+          <div className="mt-4 flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+              />
               Kom ihåg mig på den här enheten
             </label>
           </div>
@@ -207,7 +269,11 @@ function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
             </div>
           )}
 
-          <Button onClick={submitPin} variant="primary" className="mt-6 w-full py-3 text-base">
+          <Button
+            onClick={submitPin}
+            variant="primary"
+            className="mt-6 w-full py-3 text-base"
+          >
             Logga in
           </Button>
         </Card>
@@ -292,7 +358,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   }
 
   async function setStatus(id: string, status: DbOrder["status"]) {
-    const { error } = await supabase.from("orders").update({ status }).eq("id", id);
+    const { error } = await supabase
+      .from("orders")
+      .update({ status })
+      .eq("id", id);
 
     if (error) {
       alert("Kunde inte uppdatera status: " + error.message);
@@ -300,7 +369,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
 
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
-    setArchived((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    setArchived((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status } : o))
+    );
   }
 
   async function archiveOrder(id: string) {
@@ -322,9 +393,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
     const ch = supabase
       .channel("orders-admin")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        fetchOrders();
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => {
+          fetchOrders();
+        }
+      )
       .subscribe();
 
     const t = window.setInterval(fetchOrders, 15000);
@@ -344,10 +419,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-                Admin • Orderlista
+                Adminsida il-forno
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} • Supabase
+                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} •
+                Orderhantering
               </p>
             </div>
 
@@ -393,10 +469,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
         {!loading && visible.length === 0 && (
           <div className="py-16 text-center">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 ring-1 ring-slate-200">
               <span className="text-xl">🧾</span>
             </div>
-            <div className="text-slate-700 font-semibold">
+            <div className="font-semibold text-slate-700">
               {showArchive ? "Inga arkiverade ordrar ännu." : "Inga ordrar ännu."}
             </div>
             <div className="mt-1 text-sm text-slate-500">
@@ -413,6 +489,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
               const time = formatTimeFromIso(o.created_at);
 
               const isNew = !showArchive && o.status === "Ny";
+              const hasAnyComment = items.some((it) => !!it.comment?.trim());
+              const eta = String(o.status ?? "").startsWith("Tillagas")
+                ? parseEtaLabel(String(o.status))
+                : "";
 
               return (
                 <Card
@@ -448,11 +528,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                   )}
 
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <div className="text-lg font-bold text-slate-900">
-                      Status
-                    </div>
+                    <div className="text-lg font-bold text-slate-900">Status</div>
                     <StatusBadge status={o.status} />
                     {isNew && <Badge tone="new">NY</Badge>}
+                    {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
+                    {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                   </div>
 
                   <div className="mt-2 text-sm text-slate-600">
@@ -467,26 +547,39 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     <div className="font-semibold text-slate-900">Innehåll</div>
 
                     <ul className="mt-3 space-y-2">
-                      {items.map((it, idx) => (
-                        <li
-                          key={idx}
-                          className="rounded-xl bg-white p-3 ring-1 ring-slate-200"
-                        >
-                          <div className="font-semibold text-slate-900">
-                            {it.qty}× {it.name}
-                          </div>
-                          {it.comment?.trim() ? (
-                            <div className="mt-1 text-sm text-slate-600">
-                              Kommentar:{" "}
-                              <span className="text-slate-800">{it.comment}</span>
+                      {items.map((it, idx) => {
+                        const c = it.comment?.trim();
+                        return (
+                          <li
+                            key={idx}
+                            className="rounded-xl bg-white p-3 ring-1 ring-slate-200"
+                          >
+                            <div className="font-semibold text-slate-900">
+                              {it.qty}× {it.name}
                             </div>
-                          ) : (
-                            <div className="mt-1 text-sm text-slate-400">
-                              Ingen kommentar
-                            </div>
-                          )}
-                        </li>
-                      ))}
+
+                            {c ? (
+                              <div className="mt-2 rounded-xl bg-yellow-50 px-3 py-2 ring-1 ring-yellow-200">
+                                <div className="flex items-start gap-2">
+                                  <span className="mt-0.5">💬</span>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-yellow-900">
+                                      Kundkommentar
+                                    </div>
+                                    <div className="mt-0.5 text-sm font-semibold text-slate-900 break-words">
+                                      {c}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-sm text-slate-400">
+                                Ingen kommentar
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
 
                     {typeof o.total === "number" && (
@@ -502,11 +595,16 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                   </div>
 
                   {!showArchive && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button onClick={() => setStatus(o.id, "Tillagas")} variant="secondary">
-                        Tillagas
-                      </Button>
-                      <Button onClick={() => setStatus(o.id, "Klar")} variant="primary">
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <EtaSelect
+                        value={eta || ""}
+                        onSelect={(label) => setStatus(o.id, `Tillagas • ${label}`)}
+                      />
+                      <Button
+                        onClick={() => setStatus(o.id, "Klar")}
+                        variant="primary"
+                        className="h-10"
+                      >
                         Klar
                       </Button>
                     </div>
