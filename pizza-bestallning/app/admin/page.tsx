@@ -120,17 +120,16 @@ function Badge({
 }
 
 function StatusBadge({ status }: { status: DbOrder["status"] }) {
-  // Tillåt att status innehåller extra info, t.ex. "Tillagas • 15 min"
   const s = String(status ?? "");
   if (s === "Ny" || s.startsWith("Ny ")) return <Badge tone="new">Ny</Badge>;
-  if (s === "Klar" || s.startsWith("Klar ")) return <Badge tone="done">Klar</Badge>;
+  if (s === "Klar" || s.startsWith("Klar "))
+    return <Badge tone="done">Klar</Badge>;
   if (s === "Tillagas" || s.startsWith("Tillagas"))
     return <Badge tone="cooking">Tillagas</Badge>;
   return <Badge tone="neutral">{s}</Badge>;
 }
 
 function parseEtaLabel(status: string) {
-  // Förväntar t.ex. "Tillagas • 15 min" eller "Tillagas • 1h+"
   const m = status.match(/Tillagas\s*[•\-]\s*(.+)$/i);
   return m?.[1]?.trim() || "";
 }
@@ -300,10 +299,34 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   const lastSeenIdsRef = useRef<Set<string>>(new Set());
   const initialLoadedRef = useRef(false);
 
+  // ⭐ Nytt: vilka ordrar ska "glowa" just nu (nyinkomna)
+  const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
+  const glowTimersRef = useRef<Record<string, number>>({});
+
   const visible = useMemo(
     () => (showArchive ? archived : orders),
     [showArchive, archived, orders]
   );
+
+  function addGlow(id: string) {
+    setGlowIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+
+    const existing = glowTimersRef.current[id];
+    if (existing) window.clearTimeout(existing);
+
+    glowTimersRef.current[id] = window.setTimeout(() => {
+      setGlowIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      delete glowTimersRef.current[id];
+    }, 20000);
+  }
 
   async function fetchOrders() {
     const firstLoad = !hasLoadedOnceRef.current;
@@ -336,13 +359,15 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     const activeSafe = (active ?? []) as DbOrder[];
     const arcSafe = (arc ?? []) as DbOrder[];
 
-    // 🔔 Pling vid NYA ordrar (efter första laddningen)
+    // 🔔 Pling + glow vid NYA ordrar (efter första laddningen)
     if (initialLoadedRef.current) {
       const prevIds = lastSeenIdsRef.current;
-      const hasNew = activeSafe.some((o) => !prevIds.has(o.id));
-      if (hasNew) {
+      const newOnes = activeSafe.filter((o) => !prevIds.has(o.id));
+
+      if (newOnes.length > 0) {
         const audio = new Audio(NEW_ORDER_SOUND);
         audio.play().catch(() => {});
+        newOnes.forEach((o) => addGlow(o.id));
       }
     }
 
@@ -407,18 +432,43 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     return () => {
       supabase.removeChannel(ch);
       window.clearInterval(t);
+      Object.values(glowTimersRef.current).forEach((id) =>
+        window.clearTimeout(id)
+      );
+      glowTimersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
-      {/* Topbar */}
+      <style jsx global>{`
+        @keyframes orderGlow {
+          0% {
+            box-shadow: 0 0 0 rgba(251, 191, 36, 0);
+          }
+          35% {
+            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.22),
+              0 0 28px rgba(251, 191, 36, 0.35);
+          }
+          70% {
+            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.18),
+              0 0 22px rgba(251, 191, 36, 0.28);
+          }
+          100% {
+            box-shadow: 0 0 0 rgba(251, 191, 36, 0);
+          }
+        }
+        .order-glow {
+          animation: orderGlow 1.4s ease-in-out infinite;
+        }
+      `}</style>
+
       <div className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-6 py-4">
+        <div className="mx-auto max-w-6xl px-5 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900">
                 Adminsida il-forno
               </h1>
               <p className="mt-1 text-sm text-slate-600">
@@ -440,11 +490,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
 
-          {/* Reserverar ALLTID plats så listan inte hoppar */}
           {!loading && (
             <div
               className={cx(
-                "mt-3 h-5 text-sm text-slate-500 transition-opacity",
+                "mt-2 h-5 text-sm text-slate-500 transition-opacity",
                 refreshing ? "opacity-100" : "opacity-0"
               )}
             >
@@ -454,7 +503,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-6 py-6">
+      <div className="mx-auto max-w-6xl px-5 py-5">
         {loading && (
           <Card className="p-5 text-slate-700">
             <div className="flex items-center gap-3">
@@ -481,31 +530,36 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {!loading &&
             visible.map((o) => {
               const items: { name: string; qty: number; comment?: string }[] =
                 Array.isArray(o.items) ? o.items : [];
               const time = formatTimeFromIso(o.created_at);
 
-              const isNew = !showArchive && o.status === "Ny";
+              const isNewStatus = !showArchive && o.status === "Ny";
               const hasAnyComment = items.some((it) => !!it.comment?.trim());
               const eta = String(o.status ?? "").startsWith("Tillagas")
                 ? parseEtaLabel(String(o.status))
                 : "";
 
+              const shouldGlow = !showArchive && glowIds.has(o.id);
+
               return (
                 <Card
                   key={o.id}
                   className={cx(
-                    "p-5",
-                    isNew && "ring-2 ring-amber-300 bg-amber-50/40"
+                    "p-4",
+                    isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
+                    shouldGlow && "order-glow"
                   )}
                 >
                   {!showArchive && (
                     <div className="flex items-start justify-between gap-3">
                       <div className="text-sm text-slate-600">
-                        <span className="font-semibold text-slate-800">Order</span>{" "}
+                        <span className="font-semibold text-slate-800">
+                          Order
+                        </span>{" "}
                         <span className="text-slate-400">•</span> {time}
                       </div>
 
@@ -528,9 +582,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                   )}
 
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <div className="text-lg font-bold text-slate-900">Status</div>
+                    <div className="text-base font-bold text-slate-900">
+                      Status
+                    </div>
                     <StatusBadge status={o.status} />
-                    {isNew && <Badge tone="new">NY</Badge>}
+                    {isNewStatus && <Badge tone="new">NY</Badge>}
                     {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
                     {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                   </div>
@@ -543,9 +599,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     {o.customer_phone ?? "—"}
                   </div>
 
-                  <div className="mt-5 border-t border-slate-200 pt-4">
+                  <div className="mt-4 border-t border-slate-200 pt-3">
                     <div className="font-semibold text-slate-900">Innehåll</div>
 
+                    {/* ✅ ÄNDRING: Ingen scroll / ingen max-höjd */}
                     <ul className="mt-3 space-y-2">
                       {items.map((it, idx) => {
                         const c = it.comment?.trim();
@@ -583,7 +640,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     </ul>
 
                     {typeof o.total === "number" && (
-                      <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
+                      <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
                         <span className="text-sm font-semibold text-slate-700">
                           Totalt
                         </span>
@@ -595,10 +652,12 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                   </div>
 
                   {!showArchive && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <EtaSelect
                         value={eta || ""}
-                        onSelect={(label) => setStatus(o.id, `Tillagas • ${label}`)}
+                        onSelect={(label) =>
+                          setStatus(o.id, `Tillagas • ${label}`)
+                        }
                       />
                       <Button
                         onClick={() => setStatus(o.id, "Klar")}
