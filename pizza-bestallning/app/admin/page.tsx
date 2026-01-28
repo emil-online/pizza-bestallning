@@ -27,97 +27,102 @@ function formatTimeFromIso(iso: string) {
 }
 
 export default function AdminPage() {
-  // ---------- PIN gate ----------
   const [isAuthed, setIsAuthed] = useState(false);
-  const [pin, setPin] = useState("");
-  const [remember, setRemember] = useState(true);
-  const [pinError, setPinError] = useState("");
 
   useEffect(() => {
     const ok = localStorage.getItem(ADMIN_AUTH_KEY);
     if (ok === "1") setIsAuthed(true);
   }, []);
 
+  function logout() {
+    localStorage.removeItem(ADMIN_AUTH_KEY);
+    setIsAuthed(false);
+  }
+
+  if (!isAuthed) {
+    return <AdminLogin onAuthed={() => setIsAuthed(true)} />;
+  }
+
+  return <AdminApp onLogout={logout} />;
+}
+
+function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
+  const [pin, setPin] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [pinError, setPinError] = useState("");
+
   function submitPin() {
     if (pin === ADMIN_PIN) {
-      setIsAuthed(true);
       setPinError("");
       if (remember) localStorage.setItem(ADMIN_AUTH_KEY, "1");
       else localStorage.removeItem(ADMIN_AUTH_KEY);
       setPin("");
+      onAuthed();
       return;
     }
     setPinError("Fel PIN. Försök igen.");
   }
 
-  function logout() {
-    localStorage.removeItem(ADMIN_AUTH_KEY);
-    setIsAuthed(false);
-    setPin("");
-    setPinError("");
-  }
+  return (
+    <main className="min-h-screen bg-amber-50 p-6">
+      <div className="mx-auto max-w-md">
+        <div className="rounded-2xl bg-white p-6 shadow-sm border border-amber-100">
+          <h1 className="text-2xl font-bold text-gray-900">Admin</h1>
+          <p className="mt-1 text-slate-600">Ange PIN för att komma in.</p>
 
-  if (!isAuthed) {
-    return (
-      <main className="min-h-screen bg-amber-50 p-6">
-        <div className="mx-auto max-w-md">
-          <div className="rounded-2xl bg-white p-6 shadow-sm border border-amber-100">
-            <h1 className="text-2xl font-bold text-gray-900">Admin</h1>
-            <p className="mt-1 text-slate-600">Ange PIN för att komma in.</p>
+          <label className="mt-6 block text-sm font-medium text-gray-700">
+            PIN
+          </label>
+          <input
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="1234"
+            className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitPin();
+            }}
+          />
 
-            <label className="mt-6 block text-sm font-medium text-gray-700">
-              PIN
-            </label>
+          <div className="mt-3 flex items-center gap-2">
             <input
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="1234"
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitPin();
-              }}
+              id="remember"
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
             />
-
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                id="remember"
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              <label htmlFor="remember" className="text-sm text-gray-700">
-                Kom ihåg mig på den här enheten
-              </label>
-            </div>
-
-            {pinError && (
-              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {pinError}
-              </div>
-            )}
-
-            <button
-              onClick={submitPin}
-              className="mt-5 w-full rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700"
-            >
-              Logga in
-            </button>
+            <label htmlFor="remember" className="text-sm text-gray-700">
+              Kom ihåg mig på den här enheten
+            </label>
           </div>
-        </div>
-      </main>
-    );
-  }
 
-  // ---------- Admin app ----------
+          {pinError && (
+            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {pinError}
+            </div>
+          )}
+
+          <button
+            onClick={submitPin}
+            className="mt-5 w-full rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700"
+          >
+            Logga in
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function AdminApp({ onLogout }: { onLogout: () => void }) {
   const [showArchive, setShowArchive] = useState(false);
   const [orders, setOrders] = useState<DbOrder[]>([]);
   const [archived, setArchived] = useState<DbOrder[]>([]);
 
   // Första laddningen
   const [loading, setLoading] = useState(true);
-  // Bakgrundsuppdatering (utan hopp)
+  // Bakgrundsuppdatering (utan layout shift)
   const [refreshing, setRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
@@ -226,7 +231,6 @@ export default function AdminPage() {
       )
       .subscribe();
 
-    // Fallback poll
     const t = window.setInterval(fetchOrders, 15000);
 
     return () => {
@@ -252,7 +256,7 @@ export default function AdminPage() {
               {showArchive ? "Visa aktiva" : "Visa arkiv"}
             </button>
             <button
-              onClick={logout}
+              onClick={onLogout}
               className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50"
               title="Logga ut"
             >
@@ -313,9 +317,7 @@ export default function AdminPage() {
                   </button>
                 )}
 
-                <div className="text-sm text-slate-600">
-                  Order • {time}
-                </div>
+                <div className="text-sm text-slate-600">Order • {time}</div>
 
                 <div className="mt-1 text-lg font-semibold flex items-center gap-2 text-gray-900">
                   <span>Status: {o.status}</span>
@@ -335,7 +337,10 @@ export default function AdminPage() {
 
                   <ul className="mt-2 space-y-2 text-slate-800">
                     {items.map((it, idx) => (
-                      <li key={idx} className="rounded-xl border border-slate-200 p-3">
+                      <li
+                        key={idx}
+                        className="rounded-xl border border-slate-200 p-3"
+                      >
                         <div className="font-medium text-gray-900">
                           {it.qty}× {it.name}
                         </div>
