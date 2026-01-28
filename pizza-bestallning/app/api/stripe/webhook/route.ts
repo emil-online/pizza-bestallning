@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -10,83 +11,77 @@ function mustEnv(name: string) {
   return v;
 }
 
-function reconstructOrder(metadata: Record<string, string>) {
-  const n = Number(metadata["chunks"] ?? 0);
-  if (!n || n < 1) return null;
+function reassembleMetadata(metadata: Record<string, string> | null | undefined) {
+  if (!metadata) return null;
+  const n = Number(metadata.chunks ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return null;
 
-  let json = "";
+  let s = "";
   for (let i = 0; i < n; i++) {
     const part = metadata[`o${i}`];
-    if (!part) return null;
-    json += part;
+    if (typeof part !== "string") return null;
+    s += part;
   }
-
-  try {
-    return JSON.parse(json) as {
-      created_at: string;
-      total: number;
-      items: { name: string; qty: number; comment?: string; price?: number }[];
-    };
-  } catch {
-    return null;
-  }
+  return s;
 }
 
 export async function POST(req: Request) {
+  const stripe = new Stripe(mustEnv("STRIPE_SECRET_KEY"));
+  const sig = (await headers()).get("stripe-signature");
+  if (!sig) return new NextResponse("Missing stripe-signature", { status: 400 });
+
+  const rawBody = await req.text();
+
+  let event: Stripe.Event;
   try {
-    const sig = req.headers.get("stripe-signature");
-    if (!sig) return new NextResponse("Missing stripe-signature", { status: 400 });
-
-    const stripe = new Stripe(mustEnv("STRIPE_SECRET_KEY"));
-    const whsec = mustEnv("STRIPE_WEBHOOK_SECRET");
-
-    const body = await req.text();
-
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(body, sig, whsec);
-    } catch (err: any) {
-      console.error("Webhook bad signature:", err?.message ?? err);
-      return new NextResponse("Bad signature", { status: 400 });
-    }
-
-    // Svara OK på allt utom "betalning klar"
-    if (event.type !== "checkout.session.completed") {
-      return NextResponse.json({ ok: true });
-    }
-
-    const session = event.data.object as Stripe.Checkout.Session;
-    const metadata = (session.metadata ?? {}) as Record<string, string>;
-    const order = reconstructOrder(metadata);
-
-    if (!order) {
-      console.error("No order metadata on session:", session.id);
-      return NextResponse.json({ ok: true, note: "no order metadata" });
-    }
-
-    const supabase = createClient(
-      mustEnv("SUPABASE_URL"),
-      mustEnv("SUPABASE_SERVICE_ROLE_KEY"),
-      { auth: { persistSession: false } }
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      sig,
+      mustEnv("STRIPE_WEBHOOK_SECRET")
     );
+  } catch (err: any) {
+    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+  }
 
-    const { error } = await supabase.from("orders").insert({
+  // Vi bryr oss främst om att Checkout-sessionen är klar:
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+
+    // Återskapa din order som du packade i metadata
+    const json = reassembleMetadata(session.metadata);
+    if (!json) return new NextResponse("Missing order metadata", { status: 400 });
+
+    let order: any;
+    try {
+      order = JSON.parse(json);
+    } catch {
+      return new NextResponse("Bad order metadata JSON", { status: 400 });
+    }
+
+    // (Valfritt men bra) idempotens: undvik dubbletter om Stripe skickar webhook fler gånger
+    const stripeSessionId = session.id;
+
+    const insertPayload = {
       status: "Ny",
-      customer_name: null,
-      customer_phone: null,
-      notes: null,
-      items: order.items,
-      total: order.total,
-    });
+      created_at: order.created_at ?? new Date().toISOString(),
+      total: Number(order.total ?? 0),
+      items: Array.isArray(order.items) ? order.items : [],
+      // om du vill spara koppling till Stripe:
+      // stripe_session_id: stripeSessionId,
+      // customer_name: null,
+      // customer_phone: null,
+    };
+
+    // Om du inte har en kolumn för stripe_session_id kan du skippa idempotens,
+    // men rekommenderas starkt att lägga till den.
+    const { error } = await supabaseAdmin.from("orders").insert(insertPayload);
 
     if (error) {
-      console.error("Supabase insert failed:", error);
-      return new NextResponse("DB error", { status: 500 });
+      // Logga så du ser exakt varför (RLS, schema, etc)
+      console.error("Supabase insert error:", error);
+      return new NextResponse("Supabase insert failed", { status: 500 });
     }
-
-    return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error("Webhook crashed:", err?.message ?? err);
-    return new NextResponse("Webhook crashed", { status: 500 });
   }
+
+  return NextResponse.json({ received: true });
 }
