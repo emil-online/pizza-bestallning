@@ -299,14 +299,38 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   const lastSeenIdsRef = useRef<Set<string>>(new Set());
   const initialLoadedRef = useRef(false);
 
-  // ⭐ Nytt: vilka ordrar ska "glowa" just nu (nyinkomna)
+  // ⭐ vilka ordrar ska "glowa" just nu (nyinkomna)
   const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
   const glowTimersRef = useRef<Record<string, number>>({});
+
+  // ✅ NYTT: kolumn-antal baserat på bredd (1 / 2 / 3)
+  const [colCount, setColCount] = useState(1);
+
+  useEffect(() => {
+    const compute = () => {
+      const w = window.innerWidth;
+      if (w >= 1280) setColCount(3); // xl
+      else if (w >= 768) setColCount(2); // md
+      else setColCount(1); // mobile
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
 
   const visible = useMemo(
     () => (showArchive ? archived : orders),
     [showArchive, archived, orders]
   );
+
+  // ✅ NYTT: fördela ordrar i kolumner "i sidled först"
+  const columns = useMemo(() => {
+    const cols: DbOrder[][] = Array.from({ length: colCount }, () => []);
+    visible.forEach((o, idx) => {
+      cols[idx % colCount].push(o);
+    });
+    return cols;
+  }, [visible, colCount]);
 
   function addGlow(id: string) {
     setGlowIds((prev) => {
@@ -530,148 +554,160 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {!loading &&
-            visible.map((o) => {
-              const items: { name: string; qty: number; comment?: string }[] =
-                Array.isArray(o.items) ? o.items : [];
-              const time = formatTimeFromIso(o.created_at);
+        {/* ✅ PUSSEL + FYLLER I SIDLED FÖRST: manuella kolumner med flex */}
+        <div className="flex gap-4">
+          {columns.map((col, colIdx) => (
+            <div key={colIdx} className="flex-1 flex flex-col gap-4">
+              {col.map((o) => {
+                const items: { name: string; qty: number; comment?: string }[] =
+                  Array.isArray(o.items) ? o.items : [];
+                const time = formatTimeFromIso(o.created_at);
 
-              const isNewStatus = !showArchive && o.status === "Ny";
-              const hasAnyComment = items.some((it) => !!it.comment?.trim());
-              const eta = String(o.status ?? "").startsWith("Tillagas")
-                ? parseEtaLabel(String(o.status))
-                : "";
+                const isNewStatus = !showArchive && o.status === "Ny";
+                const hasAnyComment = items.some((it) => !!it.comment?.trim());
+                const eta = String(o.status ?? "").startsWith("Tillagas")
+                  ? parseEtaLabel(String(o.status))
+                  : "";
 
-              const shouldGlow = !showArchive && glowIds.has(o.id);
+                const shouldGlow = !showArchive && glowIds.has(o.id);
 
-              return (
-                <Card
-                  key={o.id}
-                  className={cx(
-                    "p-4",
-                    isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
-                    shouldGlow && "order-glow"
-                  )}
-                >
-                  {!showArchive && (
-                    <div className="flex items-start justify-between gap-3">
+                return (
+                  <Card
+                    key={o.id}
+                    className={cx(
+                      "p-4",
+                      isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
+                      shouldGlow && "order-glow"
+                    )}
+                  >
+                    {!showArchive && (
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-sm text-slate-600">
+                          <span className="font-semibold text-slate-800">
+                            Order
+                          </span>{" "}
+                          <span className="text-slate-400">•</span> {time}
+                        </div>
+
+                        <Button
+                          onClick={() => archiveOrder(o.id)}
+                          variant="secondary"
+                          className="px-3 py-1.5"
+                          title="Arkivera order"
+                        >
+                          Arkivera
+                        </Button>
+                      </div>
+                    )}
+
+                    {showArchive && (
                       <div className="text-sm text-slate-600">
                         <span className="font-semibold text-slate-800">
                           Order
                         </span>{" "}
                         <span className="text-slate-400">•</span> {time}
                       </div>
+                    )}
 
-                      <Button
-                        onClick={() => archiveOrder(o.id)}
-                        variant="secondary"
-                        className="px-3 py-1.5"
-                        title="Arkivera order"
-                      >
-                        Arkivera
-                      </Button>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <div className="text-base font-bold text-slate-900">
+                        Status
+                      </div>
+                      <StatusBadge status={o.status} />
+                      {isNewStatus && <Badge tone="new">NY</Badge>}
+                      {hasAnyComment && (
+                        <Badge tone="comment">💬 Kommentar</Badge>
+                      )}
+                      {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                     </div>
-                  )}
 
-                  {showArchive && (
-                    <div className="text-sm text-slate-600">
-                      <span className="font-semibold text-slate-800">Order</span>{" "}
-                      <span className="text-slate-400">•</span> {time}
+                    <div className="mt-2 text-sm text-slate-600">
+                      <span className="font-semibold text-slate-800">
+                        {o.customer_name ?? "Kund"}
+                      </span>{" "}
+                      <span className="text-slate-400">•</span>{" "}
+                      {o.customer_phone ?? "—"}
                     </div>
-                  )}
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <div className="text-base font-bold text-slate-900">
-                      Status
-                    </div>
-                    <StatusBadge status={o.status} />
-                    {isNewStatus && <Badge tone="new">NY</Badge>}
-                    {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
-                    {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
-                  </div>
+                    <div className="mt-4 border-t border-slate-200 pt-3">
+                      <div className="font-semibold text-slate-900">
+                        Innehåll
+                      </div>
 
-                  <div className="mt-2 text-sm text-slate-600">
-                    <span className="font-semibold text-slate-800">
-                      {o.customer_name ?? "Kund"}
-                    </span>{" "}
-                    <span className="text-slate-400">•</span>{" "}
-                    {o.customer_phone ?? "—"}
-                  </div>
+                      <ul className="mt-3 space-y-2">
+                        {items.map((it, idx) => {
+                          const c = it.comment?.trim();
+                          return (
+                            <li
+                              key={idx}
+                              className="rounded-xl bg-white p-3 ring-1 ring-slate-200"
+                            >
+                              <div className="font-semibold text-slate-900">
+                                {it.qty}× {it.name}
+                              </div>
 
-                  <div className="mt-4 border-t border-slate-200 pt-3">
-                    <div className="font-semibold text-slate-900">Innehåll</div>
-
-                    {/* ✅ ÄNDRING: Ingen scroll / ingen max-höjd */}
-                    <ul className="mt-3 space-y-2">
-                      {items.map((it, idx) => {
-                        const c = it.comment?.trim();
-                        return (
-                          <li
-                            key={idx}
-                            className="rounded-xl bg-white p-3 ring-1 ring-slate-200"
-                          >
-                            <div className="font-semibold text-slate-900">
-                              {it.qty}× {it.name}
-                            </div>
-
-                            {c ? (
-                              <div className="mt-2 rounded-xl bg-yellow-50 px-3 py-2 ring-1 ring-yellow-200">
-                                <div className="flex items-start gap-2">
-                                  <span className="mt-0.5">💬</span>
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-bold text-yellow-900">
-                                      Kundkommentar
-                                    </div>
-                                    <div className="mt-0.5 text-sm font-semibold text-slate-900 break-words">
-                                      {c}
+                              {c ? (
+                                <div className="mt-2 rounded-xl bg-yellow-50 px-3 py-2 ring-1 ring-yellow-200">
+                                  <div className="flex items-start gap-2">
+                                    <span className="mt-0.5">💬</span>
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-bold text-yellow-900">
+                                        Kundkommentar
+                                      </div>
+                                      <div className="mt-0.5 text-sm font-semibold text-slate-900 break-words">
+                                        {c}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="mt-1 text-sm text-slate-400">
-                                Ingen kommentar
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
+                              ) : (
+                                <div className="mt-1 text-sm text-slate-400">
+                                  Ingen kommentar
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
 
-                    {typeof o.total === "number" && (
-                      <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
-                        <span className="text-sm font-semibold text-slate-700">
-                          Totalt
-                        </span>
-                        <span className="text-lg font-extrabold text-slate-900">
-                          {o.total} kr
-                        </span>
+                      {typeof o.total === "number" && (
+                        <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
+                          <span className="text-sm font-semibold text-slate-700">
+                            Totalt
+                          </span>
+                          <span className="text-lg font-extrabold text-slate-900">
+                            {o.total} kr
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!showArchive && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <EtaSelect
+                          value={eta || ""}
+                          onSelect={(label) =>
+                            setStatus(o.id, `Tillagas • ${label}`)
+                          }
+                        />
+                        <Button
+                          onClick={() => setStatus(o.id, "Klar")}
+                          variant="primary"
+                          className="h-10"
+                        >
+                          Klar
+                        </Button>
                       </div>
                     )}
-                  </div>
-
-                  {!showArchive && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <EtaSelect
-                        value={eta || ""}
-                        onSelect={(label) =>
-                          setStatus(o.id, `Tillagas • ${label}`)
-                        }
-                      />
-                      <Button
-                        onClick={() => setStatus(o.id, "Klar")}
-                        variant="primary"
-                        className="h-10"
-                      >
-                        Klar
-                      </Button>
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
+                  </Card>
+                );
+              })}
+            </div>
+          ))}
         </div>
+
+        {/* Bonus: på mobil vill vi inte ha 3 flex-kolumner som blir för smala */}
+        {/* Det hanteras via colCount (1/2/3) så flex blir automatiskt rätt */}
       </div>
     </main>
   );
