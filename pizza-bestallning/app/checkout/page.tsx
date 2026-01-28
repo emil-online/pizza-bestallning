@@ -1,173 +1,299 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
-
-type PendingItem = {
-  name: string;
-  price: number;
-  comment: string;
-  qty: number; // vi använder 1 per rad
-};
+import { useRouter, useSearchParams } from "next/navigation";
 
 type PendingOrder = {
-  createdAt: string; // ISO
-  items: PendingItem[];
+  createdAt: string;
+  items: { name: string; price: number; comment?: string; qty: number }[];
   total: number;
 };
 
-export default function CheckoutPage() {
-  const router = useRouter();
+function cx(...classes: Array<string | false | undefined | null>) {
+  return classes.filter(Boolean).join(" ");
+}
 
-  const [pending, setPending] = useState<PendingOrder | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+function Card({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        "rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
-  useEffect(() => {
-    const raw = sessionStorage.getItem("pendingOrder");
-    if (!raw) {
-      router.replace("/");
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as PendingOrder;
-      if (!parsed?.items?.length) {
-        router.replace("/");
-        return;
-      }
-      setPending(parsed);
-    } catch {
-      router.replace("/");
-    }
-  }, [router]);
-
-  const total = useMemo(() => pending?.total ?? 0, [pending]);
-
-  async function submitOrder() {
-    if (!pending) return;
-
-    const n = name.trim();
-    const p = phone.trim();
-
-    if (!n) {
-      alert("Skriv ditt namn.");
-      return;
-    }
-    if (!p) {
-      alert("Skriv ditt telefonnummer.");
-      return;
-    }
-
-    setSubmitting(true);
-
-    const { error } = await supabase.from("orders").insert({
-      status: "Ny",
-      customer_name: n,
-      customer_phone: p,
-      items: pending.items.map((it) => ({
-        name: it.name,
-        qty: it.qty,
-        comment: it.comment || "",
-      })),
-      total: pending.total,
-    });
-
-    setSubmitting(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    sessionStorage.removeItem("pendingOrder");
-    alert("Tack! Din beställning är skickad.");
-    router.replace("/");
-  }
-
-  if (!pending) return null;
+function Button({
+  children,
+  onClick,
+  className,
+  variant = "secondary",
+  disabled,
+  title,
+  type = "button",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  variant?: "primary" | "secondary" | "ghost";
+  disabled?: boolean;
+  title?: string;
+  type?: "button" | "submit";
+}) {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold " +
+    "transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed";
+  const variants: Record<string, string> = {
+    primary:
+      "bg-amber-600 text-white hover:bg-amber-700 shadow-sm shadow-amber-600/10",
+    secondary:
+      "bg-white text-slate-900 ring-1 ring-slate-300 hover:bg-slate-50",
+    ghost: "bg-transparent text-slate-700 hover:bg-slate-100",
+  };
 
   return (
-    <main className="min-h-screen bg-amber-50">
-      <div className="mx-auto max-w-xl p-6">
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Kvitto</h1>
-          <p className="mt-1 text-slate-600">
-            Kontrollera din beställning och fyll i namn + telefonnummer.
+    <button
+      type={type}
+      onClick={onClick}
+      className={cx(base, variants[variant], className)}
+      disabled={disabled}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function CheckoutPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+
+  const [order, setOrder] = useState<PendingOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  const success = params.get("success") === "true";
+  const canceled = params.get("canceled") === "true";
+
+  // 1) Ladda order från sessionStorage (endast när vi INTE är på success)
+  useEffect(() => {
+    // Om betalningen lyckats: töm pending order direkt så man inte kan betala igen
+    if (success) {
+      sessionStorage.removeItem("pendingOrder");
+      setOrder(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const raw = sessionStorage.getItem("pendingOrder");
+      if (!raw) {
+        setOrder(null);
+        setLoading(false);
+        return;
+      }
+      const parsed = JSON.parse(raw) as PendingOrder;
+      setOrder(parsed);
+    } catch {
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [success]);
+
+  const total = useMemo(() => order?.total ?? 0, [order]);
+
+  async function payWithStripe() {
+    setError("");
+
+    // Om betalning redan lyckats ska man aldrig kunna starta ny betalning här
+    if (success) {
+      setError("Betalningen är redan genomförd. Gör en ny beställning.");
+      return;
+    }
+
+    if (!order) {
+      setError("Ingen order hittades. Gå tillbaka och lägg något i varukorgen först.");
+      return;
+    }
+
+    try {
+      setPaying(true);
+
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(order),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        console.error("Checkout API error:", res.status, data);
+        setError("Kunde inte starta betalning. Kolla terminal/console.");
+        return;
+      }
+
+      const url = data?.url as string | undefined;
+      if (!url) {
+        console.error("Missing Stripe url:", data);
+        setError("Stripe gav ingen betalningslänk (url saknas).");
+        return;
+      }
+
+      window.location.assign(url);
+    } catch (e) {
+      console.error(e);
+      setError("Något gick fel när betalningen startades.");
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  function backToShop() {
+    router.push("/");
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
+      <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-3xl px-6 py-6">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+            Checkout
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Bekräfta din beställning och gå vidare till betalning.
           </p>
-        </header>
+        </div>
+      </div>
 
-        <section className="rounded-2xl bg-white p-5 shadow-sm border border-amber-100">
-          <div className="space-y-3">
-            {pending.items.map((it, idx) => (
-              <div key={idx} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-gray-900">{it.name}</div>
-                    {it.comment?.trim() ? (
-                      <div className="mt-1 text-sm text-slate-700">
-                        <span className="font-semibold">Kommentar:</span>{" "}
-                        {it.comment}
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-sm text-slate-500">
-                        Ingen kommentar
-                      </div>
-                    )}
+      <div className="mx-auto max-w-3xl px-6 py-6">
+        {success && (
+          <Card className="p-5 ring-1 ring-emerald-200 bg-emerald-50/50">
+            <div className="text-lg font-bold text-emerald-900">
+              Betalning lyckades ✅
+            </div>
+            <div className="mt-1 text-sm text-emerald-900/80">
+              Din order är mottagen. Du kan göra en ny beställning nedan.
+            </div>
+
+            <Button
+              type="button"
+              onClick={backToShop}
+              variant="primary"
+              className="mt-4 w-full py-3 text-base"
+            >
+              Gör en ny beställning
+            </Button>
+          </Card>
+        )}
+
+        {canceled && (
+          <Card className="p-5 ring-1 ring-amber-200 bg-amber-50/50">
+            <div className="text-lg font-bold text-amber-900">
+              Betalning avbruten
+            </div>
+            <div className="mt-1 text-sm text-amber-900/80">
+              Du kan försöka igen när du vill.
+            </div>
+          </Card>
+        )}
+
+        {/* Om success=true visar vi inte ordern + inte betal-knapp */}
+        {!success && (
+          <div className="mt-6 grid gap-6">
+            <Card className="p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xl font-bold text-slate-900">Din order</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    Kontrollera innan du betalar.
                   </div>
-                  <div className="font-semibold text-gray-900">{it.price} kr</div>
                 </div>
+                <Button onClick={backToShop} variant="secondary">
+                  Tillbaka
+                </Button>
               </div>
-            ))}
 
-            <div className="flex items-center justify-between border-t pt-4">
-              <div className="text-lg font-semibold text-gray-900">Totalt</div>
-              <div className="text-lg font-bold text-gray-900">{total} kr</div>
-            </div>
+              {loading ? (
+                <div className="mt-4 text-slate-600">Laddar…</div>
+              ) : !order ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
+                  <div className="font-semibold text-slate-900">Ingen order hittades</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    Gå tillbaka och lägg något i varukorgen.
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <ul className="mt-4 space-y-2">
+                    {order.items.map((it, idx) => (
+                      <li
+                        key={idx}
+                        className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900">
+                              {it.qty}× {it.name}
+                            </div>
+                            {it.comment?.trim() ? (
+                              <div className="mt-1 text-sm text-slate-600">
+                                Kommentar:{" "}
+                                <span className="text-slate-800">{it.comment}</span>
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-sm text-slate-400">
+                                Ingen kommentar
+                              </div>
+                            )}
+                          </div>
+                          <div className="font-extrabold text-slate-900 whitespace-nowrap">
+                            {it.price} kr
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
+                    <div className="text-sm font-semibold text-slate-700">Totalt</div>
+                    <div className="text-xl font-extrabold text-slate-900">
+                      {total} kr
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-sm text-rose-900 ring-1 ring-rose-200">
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    onClick={payWithStripe}
+                    variant="primary"
+                    className="mt-4 w-full py-3 text-base"
+                    disabled={paying || !order}
+                    title={paying ? "Startar betalning…" : "Gå till betalning"}
+                  >
+                    {paying ? "Startar betalning…" : "Bekräfta beställning"}
+                  </Button>
+                </>
+              )}
+            </Card>
           </div>
-        </section>
-
-        <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm border border-amber-100">
-          <div className="grid gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-800">Namn</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ditt namn"
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-gray-900"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-800">
-                Telefon
-              </label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="07X-XXX XX XX"
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-gray-900"
-              />
-            </div>
-
-            <button
-              onClick={submitOrder}
-              disabled={submitting}
-              className="w-full rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 disabled:opacity-60"
-            >
-              {submitting ? "Skickar..." : "Bekräfta beställning"}
-            </button>
-
-            <button
-              onClick={() => router.back()}
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-gray-900 font-semibold hover:bg-slate-50"
-            >
-              Tillbaka
-            </button>
-          </div>
-        </section>
+        )}
       </div>
     </main>
   );
