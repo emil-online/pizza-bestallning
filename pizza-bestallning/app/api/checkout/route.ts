@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-export const runtime = "nodejs"; // viktigt på Vercel
+export const runtime = "nodejs";
 
-function getEnv(name: string) {
+function mustEnv(name: string) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
@@ -17,8 +17,7 @@ function chunkString(input: string, size = 450) {
 
 export async function POST(req: Request) {
   try {
-    // ✅ skapa Stripe här inne (inte på toppnivå)
-    const stripe = new Stripe(getEnv("STRIPE_SECRET_KEY"));
+    const stripe = new Stripe(mustEnv("STRIPE_SECRET_KEY"));
 
     const origin = req.headers.get("origin") ?? "http://localhost:3000";
     const body = await req.json();
@@ -26,23 +25,20 @@ export async function POST(req: Request) {
     const items = Array.isArray(body?.items) ? body.items : [];
     const total = Number(body?.total ?? 0);
 
-    if (!items.length) {
-      return NextResponse.json({ error: "items saknas" }, { status: 400 });
-    }
-    if (!Number.isFinite(total) || total <= 0) {
+    if (!items.length) return NextResponse.json({ error: "items saknas" }, { status: 400 });
+    if (!Number.isFinite(total) || total <= 0)
       return NextResponse.json({ error: "total saknas" }, { status: 400 });
-    }
 
-    // ✅ packa order i metadata för webhook
+    // Packa ordern till metadata (för webhook)
     const payload = JSON.stringify({
       created_at: new Date().toISOString(),
+      total,
       items: items.map((it: any) => ({
         name: String(it?.name ?? ""),
         qty: Number(it?.qty ?? 1),
         comment: String(it?.comment ?? ""),
         price: Number(it?.price ?? 0),
       })),
-      total,
     });
 
     const chunks = chunkString(payload, 450);
@@ -67,10 +63,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
-    console.error("API /checkout error:", err?.message ?? err);
-    return NextResponse.json(
-      { error: "Server error", detail: err?.message ?? String(err) },
-      { status: 500 }
-    );
+    console.error("/api/checkout error:", err?.message ?? err);
+    return NextResponse.json({ error: "Server error", detail: err?.message ?? String(err) }, { status: 500 });
   }
 }

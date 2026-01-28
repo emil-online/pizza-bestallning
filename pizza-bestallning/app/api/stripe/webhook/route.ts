@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs"; // viktigt på Vercel
+export const runtime = "nodejs";
 
-function getEnv(name: string) {
+function mustEnv(name: string) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
@@ -24,8 +24,8 @@ function reconstructOrder(metadata: Record<string, string>) {
   try {
     return JSON.parse(json) as {
       created_at: string;
-      items: { name: string; qty: number; comment?: string; price?: number }[];
       total: number;
+      items: { name: string; qty: number; comment?: string; price?: number }[];
     };
   } catch {
     return null;
@@ -37,22 +37,20 @@ export async function POST(req: Request) {
     const sig = req.headers.get("stripe-signature");
     if (!sig) return new NextResponse("Missing stripe-signature", { status: 400 });
 
-    const webhookSecret = getEnv("STRIPE_WEBHOOK_SECRET");
-
-    // ✅ skapa Stripe här inne (inte på toppnivå)
-    const stripe = new Stripe(getEnv("STRIPE_SECRET_KEY"));
+    const stripe = new Stripe(mustEnv("STRIPE_SECRET_KEY"));
+    const whsec = mustEnv("STRIPE_WEBHOOK_SECRET");
 
     const body = await req.text();
 
     let event: Stripe.Event;
     try {
-      event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
+      event = stripe.webhooks.constructEvent(body, sig, whsec);
     } catch (err: any) {
       console.error("Webhook bad signature:", err?.message ?? err);
       return new NextResponse("Bad signature", { status: 400 });
     }
 
-    // Svara OK för allt vi inte bryr oss om
+    // Svara OK på allt utom "betalning klar"
     if (event.type !== "checkout.session.completed") {
       return NextResponse.json({ ok: true });
     }
@@ -66,10 +64,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, note: "no order metadata" });
     }
 
-    // ✅ skapa Supabase client här inne (inte på toppnivå)
     const supabase = createClient(
-      getEnv("SUPABASE_URL"),
-      getEnv("SUPABASE_SERVICE_ROLE_KEY"),
+      mustEnv("SUPABASE_URL"),
+      mustEnv("SUPABASE_SERVICE_ROLE_KEY"),
       { auth: { persistSession: false } }
     );
 
@@ -89,7 +86,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("Webhook crash:", err?.message ?? err);
+    console.error("Webhook crashed:", err?.message ?? err);
     return new NextResponse("Webhook crashed", { status: 500 });
   }
 }
