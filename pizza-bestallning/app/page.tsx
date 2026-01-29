@@ -198,103 +198,55 @@ const MENU: MenuItem[] = [
   { id: "31-milos", category: "Skaldjurspizzor", no: 31, name: "Milo`s", desc: "tonfisk, paprika, lök, oliver, pesto", price: 140, tags: ["Skaldjur"] },
   { id: "32-marinara", category: "Skaldjurspizzor", no: 32, name: "Marinara", desc: "räkor, musslor", price: 135, tags: ["Skaldjur"] },
   { id: "33-vastkustspecial", category: "Skaldjurspizzor", no: 33, name: "Västkustspecial", desc: "tonfisk, räkor, musslor, sardeller", price: 145, tags: ["Skaldjur"] },
-  { id: "34-napolitana", category: "Skaldjurspizzor", no: 34, name: "Napolitana", desc: "sardeller, oliver", price: 130, tags: ["Skaldjur"] },
 
-  // Inbakade
-  { id: "35-calzone", category: "Inbakade pizzor", no: 35, name: "Calzone", desc: "skinka", price: 135, tags: ["Inbakad"] },
-  { id: "36-calzone-bussola", category: "Inbakade pizzor", no: 36, name: "Calzone bussola", desc: "skinka, räkor", price: 140, tags: ["Inbakad", "Skaldjur"] },
-  { id: "37-calzone-capricciose", category: "Inbakade pizzor", no: 37, name: "Calzone capricciose", desc: "skinka, champinjoner", price: 140, tags: ["Inbakad"] },
-  { id: "38-calzone-marinara", category: "Inbakade pizzor", no: 38, name: "Calzone marinara", desc: "räkor, musslor", price: 140, tags: ["Inbakad", "Skaldjur"] },
-  { id: "39-calzone-special", category: "Inbakade pizzor", no: 39, name: "Calzone special", desc: "skinka, räkor, champinjoner", price: 145, tags: ["Inbakad", "Skaldjur"] },
-  { id: "40-ararat", category: "Inbakade pizzor", no: 40, name: "Ararat", desc: "köttfärs, skinka, räkor", price: 145, tags: ["Inbakad", "Skaldjur"] },
-  { id: "41-ufo", category: "Inbakade pizzor", no: 41, name: "Ufo (dubbelinbakad)", desc: "skinka, räkor, champinjoner", price: 150, tags: ["Inbakad", "Skaldjur"] },
-  { id: "42-calzone-dubbel", category: "Inbakade pizzor", no: 42, name: "Calzone (dubbelinbakad)", desc: "skinka", price: 140, tags: ["Inbakad"] },
+  // Inbakade pizzor
+  { id: "34-calzone", category: "Inbakade pizzor", no: 34, name: "Calzone", desc: "skinka", price: 135, tags: ["Inbakad"] },
+  { id: "35-calzone-special", category: "Inbakade pizzor", no: 35, name: "Calzone special", desc: "skinka, räkor, champinjoner", price: 145, tags: ["Inbakad", "Skaldjur"] },
 
-  // Salami
-  { id: "43-kanon", category: "Salamipizzor", no: 43, name: "Kanon", desc: "salami, bacon, ägg", price: 140 },
-  { id: "44-campanjola", category: "Salamipizzor", no: 44, name: "Campanjola", desc: "salami, lök", price: 130 },
-  { id: "45-cacciatore", category: "Salamipizzor", no: 45, name: "Cacciatore", desc: "salami, mozzarella, champinjoner, lök, paprika", price: 140 },
-  { id: "46-felino", category: "Salamipizzor", no: 46, name: "Felino", desc: "salami, mozzarella, färsk tomat, pesto", price: 140 },
-  { id: "47-peperoni", category: "Salamipizzor", no: 47, name: "Peperoni", desc: "peperonikorv, mozzarella", price: 150 },
-  { id: "48-specialla", category: "Salamipizzor", no: 48, name: "Specialla", desc: "salami, mozzarella, feferoni, färsk tomat, lök", price: 140 },
-  { id: "49-buffalo", category: "Salamipizzor", no: 49, name: "Buffalo", desc: "peperonikorv, mozzarella, lök, champinjoner, jalapeño, paprika, oliver", price: 155 },
+  // Salamipizzor
+  { id: "36-salame", category: "Salamipizzor", no: 36, name: "Salame", desc: "salami", price: 135 },
+  { id: "37-milano", category: "Salamipizzor", no: 37, name: "Milano", desc: "salami, lök, paprika", price: 140 },
+  { id: "38-parma", category: "Salamipizzor", no: 38, name: "Parma", desc: "salami, gorgonzola", price: 140 },
+  { id: "39-peperoni", category: "Salamipizzor", no: 39, name: "Peperoni", desc: "salami, feferoni", price: 140 },
 
-  // Gyros (listan på sidan börjar om från 1)
-  { id: "gyros-1-alsike-if", category: "Gyrospizzor", no: 1, name: "Alsike IF", desc: "kebabkött, isberg, lök, tomat, feferoni, vitlökssås", price: 155, tags: ["Kebab"] },
-  { id: "gyros-2-disco", category: "Gyrospizzor", no: 2, name: "Disco", desc: "kebabkött, färsk tomat, paprika, stark krydda, vitlökssås", price: 145, tags: ["Kebab", "Stark"] },
-  { id: "gyros-3-alsike-lagga", category: "Gyrospizzor", no: 3, name: "Alsike lagga & långhundra special", desc: "kebabkött, skinka, lök, vitlökssås", price: 145, tags: ["Kebab"] },
-  { id: "gyros-4-mezopotamya", category: "Gyrospizzor", no: 4, name: "Mezopotamya", desc: "kebabkött, färsk tomat, feferoni, vitlökssås", price: 145, tags: ["Kebab"] },
-  { id: "gyros-5-gyrostallrik", category: "Gyrospizzor", no: 5, name: "Gyrostallrik", desc: "gyroskebab, färsk tomat, feferoni, lök, isberg, vitlökssås", price: 145, tags: ["Kebab"] },
-  { id: "gyros-6-gyrosrulle", category: "Gyrospizzor", no: 6, name: "Gyrosrulle", desc: "gyroskebab, färsk tomat, feferoni, lök, isberg, vitlökssås", price: 155, tags: ["Kebab"] },
+  // Gyrospizzor
+  { id: "40-gyros", category: "Gyrospizzor", no: 40, name: "Gyros", desc: "gyros, lök, feferoni, tzatziki", price: 145 },
+  { id: "41-gyros-special", category: "Gyrospizzor", no: 41, name: "Gyros special", desc: "gyros, champinjoner, lök, feferoni, tzatziki", price: 150 },
 
   // Kebab & rätter
-  { id: "50-kebab-i-brod", category: "Kebab & rätter", no: 50, name: "Kebab i nybakat bröd", desc: "kebabkött, isberg, tomat, lök, feferoni & såser", price: 120, tags: ["Kebab"] },
-  { id: "51-kebabrulle", category: "Kebab & rätter", no: 51, name: "Kebabrulle", desc: "nybakat bröd (tunnbröd), kebabkött, isberg, lök, tomat, feferoni, såser", price: 145, tags: ["Kebab"] },
-  { id: "52-kebabtallrik", category: "Kebab & rätter", no: 52, name: "Kebabtallrik", desc: "pommes eller ris, kebabkött, isberg, lök, feferoni, färsk tomat, såser", price: 145, tags: ["Kebab"] },
-  { id: "53-ubat", category: "Kebab & rätter", no: 53, name: "Ubåt (halvinbakad)", desc: "kebabkött, kebabsåser, isberg, lök, feferoni, färsk tomat", price: 155, tags: ["Kebab", "Inbakad"] },
-  { id: "54-kebab-viking", category: "Kebab & rätter", no: 54, name: "Kebab Viking (Inbakad)", desc: "kebabkött, kebabsåser, isberg, lök, färsk tomat, feferoni", price: 155, tags: ["Kebab", "Inbakad"] },
-  { id: "55-kebabspecial", category: "Kebab & rätter", no: 55, name: "Kebabspecial", desc: "kebabkött, kebabsås, lök, färsk tomat, feferoni, isberg", price: 155, tags: ["Kebab"] },
-  { id: "56-trekronor", category: "Kebab & rätter", no: 56, name: "Trekronor", desc: "kebabkött, såser, pommes", price: 160, tags: ["Kebab"] },
-  { id: "57-kebabpizza", category: "Kebab & rätter", no: 57, name: "Kebabpizza", desc: "kebabkött, såser, färsk tomat, lök, feferoni", price: 145, tags: ["Kebab"] },
+  { id: "42-kebabpizza", category: "Kebab & rätter", no: 42, name: "Kebabpizza", desc: "kebabkött, lök, feferoni, kebabsås", price: 150, tags: ["Kebab"] },
+  { id: "43-kebabpizza-special", category: "Kebab & rätter", no: 43, name: "Kebabpizza special", desc: "kebabkött, champinjoner, lök, feferoni, kebabsås", price: 155, tags: ["Kebab"] },
+  { id: "44-kebabrulle", category: "Kebab & rätter", no: 44, name: "Kebabrulle", desc: "kebabkött, sallad, tomat, gurka, lök, feferoni, kebabsås", price: 135, tags: ["Kebab"] },
+  { id: "45-kebabtallrik", category: "Kebab & rätter", no: 45, name: "Kebabtallrik", desc: "kebabkött, pommes, sallad, tomat, gurka, lök, feferoni, kebabsås", price: 155, tags: ["Kebab"] },
+  { id: "46-kebabrulle-brod", category: "Kebab & rätter", no: 46, name: "Kebabrulle (bröd)", desc: "kebabkött, sallad, tomat, gurka, lök, feferoni, kebabsås", price: 135, tags: ["Kebab"] },
 
   // Kyckling
-  { id: "58-kycklingpizza", category: "Kyckling", no: 58, name: "Kycklingpizza", desc: "kyckling, ananas, curry", price: 145 },
-  { id: "59-pollo", category: "Kyckling", no: 59, name: "Pollo", desc: "kyckling, mozzarella, champinjoner, lök", price: 145 },
-  { id: "60-barbeque-chicken", category: "Kyckling", no: 60, name: "Barbeque Chicken", desc: "kyckling, paprika, lök, mozzarella, barbequesås", price: 145 },
-  { id: "61-tropicana", category: "Kyckling", no: 61, name: "Tropicana", desc: "kyckling, paprika, ananas, banan, curry", price: 150 },
-  { id: "62-laggaspecial", category: "Kyckling", no: 62, name: "Laggaspecial", desc: "kyckling, paprika, curry, jordnötter, ananas, banan", price: 150 },
-  { id: "63-kycklingrulle", category: "Kyckling", no: 63, name: "Kycklingrulle", desc: "kycklingfilé, lök, paprika, färsk tomat, isberg, sås", price: 145 },
+  { id: "47-kycklingpizza", category: "Kyckling", no: 47, name: "Kycklingpizza", desc: "kyckling, lök, feferoni, vitlökssås", price: 150 },
+  { id: "48-kycklingpizza-special", category: "Kyckling", no: 48, name: "Kycklingpizza special", desc: "kyckling, champinjoner, lök, feferoni, vitlökssås", price: 155 },
+  { id: "49-kycklingrulle", category: "Kyckling", no: 49, name: "Kycklingrulle", desc: "kyckling, sallad, tomat, gurka, lök, feferoni, vitlökssås", price: 135 },
+  { id: "50-kycklingtallrik", category: "Kyckling", no: 50, name: "Kycklingtallrik", desc: "kyckling, pommes, sallad, tomat, gurka, lök, feferoni, vitlökssås", price: 155 },
 
-  // Mexikanska
-  { id: "64-azteka", category: "Mexikanska pizzor", no: 64, name: "Azteka", desc: "skinka, jalapeño, tacosås, kryddmix, vitlökssås", price: 145, tags: ["Stark"] },
-  { id: "65-la-mare", category: "Mexikanska pizzor", no: 65, name: "La Mare", desc: "kyckling, ananas, jalapeño, kryddmix, tacosås", price: 145, tags: ["Stark"] },
-  { id: "66-mexicana", category: "Mexikanska pizzor", no: 66, name: "Mexicana", desc: "köttfärs, lök, vitlök, tacosås, jalapeño, kryddmix", price: 145, tags: ["Stark"] },
-  { id: "67-acapulco", category: "Mexikanska pizzor", no: 67, name: "Acapulco", desc: "oxfilé, lök, champinjoner, vitlök, jalapeño, kryddmix, tacosås", price: 160, tags: ["Stark"] },
-  { id: "68-fireworks", category: "Mexikanska pizzor", no: 68, name: "Fireworks", desc: "fläskfilé, champinjoner, lök, kryddmix, tacosås, jalapeño, vitlökssås", price: 160, tags: ["Stark"] },
+  // Mexikanska pizzor
+  { id: "51-mexicana", category: "Mexikanska pizzor", no: 51, name: "Mexicana", desc: "taco kryddad köttfärs, lök, jalapeño, tacosås", price: 145, tags: ["Stark"] },
+  { id: "52-mexicana-special", category: "Mexikanska pizzor", no: 52, name: "Mexicana special", desc: "taco kryddad köttfärs, lök, jalapeño, tacosås, nachochips", price: 150, tags: ["Stark"] },
 
   // Oxfilé & fläskfilé
-  { id: "69-oxfilepizza", category: "Oxfilé & fläskfilé", no: 69, name: "Oxfilépizza", desc: "oxfilé, champinjoner, färsk tomat, bearnaisesås", price: 160 },
-  { id: "70-siciliana", category: "Oxfilé & fläskfilé", no: 70, name: "Siciliana", desc: "oxfilé, skinka, gorgonzola, färsk tomat, bearnaisesås", price: 160 },
-  { id: "71-erkans-special", category: "Oxfilé & fläskfilé", no: 71, name: "Erkans special", desc: "oxfilé, gorgonzola, paprika, lök, bearnaisesås", price: 160 },
-  { id: "72-andersson", category: "Oxfilé & fläskfilé", no: 72, name: "Andersson", desc: "oxfilé, champinjoner, räkor, bearnaisesås", price: 160, tags: ["Skaldjur"] },
-  { id: "73-mafioza", category: "Oxfilé & fläskfilé", no: 73, name: "Mafioza", desc: "oxfilé, soltorkade tomater, mozzarella, färsk vitlök", price: 160 },
-  { id: "74-black-white", category: "Oxfilé & fläskfilé", no: 74, name: "Black & White", desc: "oxfilé, fläskfilé, bearnaisesås", price: 160 },
-  { id: "75-alsikespecial", category: "Oxfilé & fläskfilé", no: 75, name: "Alsikespecial", desc: "fläskfilé, gorgonzola, banan, curry", price: 160 },
-  { id: "76-knivstaspecial", category: "Oxfilé & fläskfilé", no: 76, name: "Knivstaspecial", desc: "fläskfilé, färska champinjoner, färsk tomat, bearnaisesås", price: 160 },
-  { id: "77-robins", category: "Oxfilé & fläskfilé", no: 77, name: "Robins", desc: "fläskfilé, banan, ananas, curry, jordnötter, vitlökssås", price: 160 },
-  { id: "78-chefens", category: "Oxfilé & fläskfilé", no: 78, name: "Chefens", desc: "fläskfilé, champinjoner, räkor, färsk tomat, paprika, bearnaisesås", price: 160, tags: ["Skaldjur"] },
+  { id: "53-oxfile", category: "Oxfilé & fläskfilé", no: 53, name: "Oxfilépizza", desc: "oxfilé, lök, champinjoner, bearnaisesås", price: 165 },
+  { id: "54-flaskfile", category: "Oxfilé & fläskfilé", no: 54, name: "Fläskfilépizza", desc: "fläskfilé, lök, champinjoner, bearnaisesås", price: 165 },
 
   // Halvinbakad
-  { id: "79-ciao-ciao", category: "Halvinbakad", no: 79, name: "Ciao Ciao", desc: "oxfilé, champinjoner, färsk tomat, bearnaisesås", price: 160, tags: ["Inbakad"] },
-  { id: "80-aladdin", category: "Halvinbakad", no: 80, name: "Aladdin", desc: "fläskfilé, champinjoner, färsk tomat, bearnaisesås", price: 160, tags: ["Inbakad"] },
-  { id: "81-mezaluna", category: "Halvinbakad", no: 81, name: "Mezaluna", desc: "inbakad del: skinka & mozzarella, utbakad del: parma, ruccola, havssalt, olivolja", price: 160, tags: ["Inbakad"] },
+  { id: "55-halvinbakad", category: "Halvinbakad", no: 55, name: "Halvinbakad", desc: "skinka, champinjoner, räkor", price: 150, tags: ["Skaldjur"] },
 
   // Parma & ruccola
-  { id: "82-parma", category: "Parma & ruccola", no: 82, name: "Parma", desc: "parmaskinka, champinjoner, färsk tomat, mozzarella", price: 160 },
-  { id: "83-coxenaza", category: "Parma & ruccola", no: 83, name: "Coxenaza", desc: "parmaskinka, fetaost, oliver, soltorkade tomater", price: 160 },
-  { id: "84-bagarens", category: "Parma & ruccola", no: 84, name: "Bagarens special", desc: "blåmusslor, scampi, mozzarella, vitlök, ruccola", price: 160, tags: ["Skaldjur"] },
-  { id: "85-karas", category: "Parma & ruccola", no: 85, name: "Karas", desc: "scampi, kronärtskocka, sparris, oliver, mozzarella, ruccola", price: 160, tags: ["Skaldjur"] },
-  { id: "86-malins", category: "Parma & ruccola", no: 86, name: "Malins special", desc: "parmaskinka, ruccola, soltorkade tomater, oliver, svartpeppar", price: 160 },
-  { id: "87-diyars", category: "Parma & ruccola", no: 87, name: "Diyars special", desc: "parmaskinka, champinjoner, oliver, ruccola", price: 160 },
+  { id: "56-parma-ruccola", category: "Parma & ruccola", no: 56, name: "Parma & ruccola", desc: "parmaskinka, ruccola, färska tomater, parmesan", price: 165 },
 
   // Pasta
-  { id: "pasta-lasagne", category: "Pasta", name: "Lasagne al forno (hemlagad)", price: 135 },
-  { id: "pasta-penne-pollo", category: "Pasta", name: "Penne Pollo", desc: "kyckling, curry, paprika, ost, grädde", price: 135 },
-  { id: "pasta-gorgonzola", category: "Pasta", name: "Gorgonzola pasta", desc: "skinka, lök, gorgonzola, ost, grädde", price: 135 },
-  { id: "pasta-bacon", category: "Pasta", name: "Bacon pasta", desc: "bacon, lök, svartpeppar, ost, grädde", price: 135 },
-  { id: "pasta-vegetarisk", category: "Pasta", name: "Vegetarisk pasta", desc: "champinjoner, paprika, lök, ananas, kronärtskocka, ost, grädde", price: 135, tags: ["Vegetarisk"] },
+  { id: "57-pasta-bolognese", category: "Pasta", no: 57, name: "Pasta Bolognese", desc: "klassisk köttfärssås", price: 145 },
+  { id: "58-pasta-carbonara", category: "Pasta", no: 58, name: "Pasta Carbonara", desc: "bacon, grädde", price: 145 },
 
   // Sallader
-  { id: "sallad-1-tonfisk", category: "Sallader", no: 1, name: "Tonfisksallad", desc: "tonfisk, rödlök, oliver, citron", price: 140, tags: ["Skaldjur"] },
-  { id: "sallad-2-ost-skinka", category: "Sallader", no: 2, name: "Ost- & skinksallad", desc: "ost, skinka, sparris, lök", price: 140 },
-  { id: "sallad-3-grekisk", category: "Sallader", no: 3, name: "Grekisk sallad", desc: "grekisk ost, oliver, rödlök, feferoni", price: 140, tags: ["Vegetarisk"] },
-  { id: "sallad-4-hawaii", category: "Sallader", no: 4, name: "Hawaii sallad", desc: "ost, skinka, ananas, sparris", price: 140 },
-  { id: "sallad-5-amerikansk", category: "Sallader", no: 5, name: "Amerikansk sallad", desc: "ost, ananas, räkor, skinka, citron", price: 145, tags: ["Skaldjur"] },
-  { id: "sallad-6-kyckling", category: "Sallader", no: 6, name: "Kycklingsallad", desc: "kyckling, ananas, rödlök", price: 145 },
-  { id: "sallad-7-kebab", category: "Sallader", no: 7, name: "Kebabsallad", desc: "kebabkött, rödlök, feferoni", price: 145, tags: ["Kebab"] },
-  { id: "sallad-8-gyros", category: "Sallader", no: 8, name: "Gyrossallad", desc: "gyroskött, rödlök, feferoni", price: 145, tags: ["Kebab"] },
-  { id: "sallad-9-vastkust", category: "Sallader", no: 9, name: "Västkust sallad", desc: "ost, räkor, musslor, ägg, citron, sparris", price: 145, tags: ["Skaldjur"] },
-  { id: "sallad-10-rakor", category: "Sallader", no: 10, name: "Räksallad", desc: "räkor, ägg, ost, citron", price: 145, tags: ["Skaldjur"] },
+  { id: "59-grekisk-sallad", category: "Sallader", no: 59, name: "Grekisk sallad", desc: "fetaost, oliver, grönsaker", price: 135, tags: ["Vegetarisk"] },
+  { id: "60-kycklingsallad", category: "Sallader", no: 60, name: "Kycklingsallad", desc: "kyckling, grönsaker", price: 145 },
 ];
 
 const CATEGORY_ORDER: MenuCategory[] = [
@@ -317,42 +269,46 @@ const CATEGORY_ORDER: MenuCategory[] = [
 
 function tagBadges(tags?: MenuItem["tags"]) {
   if (!tags?.length) return null;
+
+  const mapTone: Record<string, "neutral" | "veg" | "hot" | "kebab" | "sea"> = {
+    Stark: "hot",
+    Vegetarisk: "veg",
+    Skaldjur: "sea",
+    Kebab: "kebab",
+    Inbakad: "neutral",
+  };
+
   return (
     <div className="mt-2 flex flex-wrap gap-2">
-      {tags.includes("Vegetarisk") && <Badge tone="veg">Vegetarisk</Badge>}
-      {tags.includes("Stark") && <Badge tone="hot">Stark</Badge>}
-      {tags.includes("Kebab") && <Badge tone="kebab">Kebab</Badge>}
-      {tags.includes("Skaldjur") && <Badge tone="sea">Skaldjur</Badge>}
-      {tags.includes("Inbakad") && <Badge>Inbakad</Badge>}
+      {tags.map((t) => (
+        <Badge key={t} tone={mapTone[t] ?? "neutral"}>
+          {t}
+        </Badge>
+      ))}
     </div>
   );
 }
 
-export default function Home() {
+export default function Page() {
   const router = useRouter();
 
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>("Pizzor med skinka");
+  const [activeCategory, setActiveCategory] = useState<MenuCategory>(
+    CATEGORY_ORDER[0]
+  );
   const [q, setQ] = useState("");
-
-  const itemsById = useMemo(() => {
-    const map: Record<string, MenuItem> = {};
-    for (const item of MENU) map[item.id] = item;
-    return map;
-  }, []);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   const cartLines = useMemo(() => {
     return cart
       .map((c) => ({
-        uid: c.uid,
-        item: itemsById[c.itemId],
-        comment: c.comment,
+        ...c,
+        item: MENU.find((m) => m.id === c.itemId),
       }))
-      .filter((x) => Boolean(x.item));
-  }, [cart, itemsById]);
+      .filter((x) => Boolean(x.item)) as Array<CartItem & { item: MenuItem }>;
+  }, [cart]);
 
   const total = useMemo(() => {
-    return cartLines.reduce((sum, line) => sum + line.item.price, 0);
+    return cartLines.reduce((sum, l) => sum + l.item.price, 0);
   }, [cartLines]);
 
   function addToCart(itemId: string) {
@@ -361,18 +317,18 @@ export default function Home() {
 
   function removeOne(itemId: string) {
     setCart((prev) => {
-      const idx = [...prev].reverse().findIndex((x) => x.itemId === itemId);
-      if (idx === -1) return prev;
-      const realIndex = prev.length - 1 - idx;
+      const index = prev.findIndex((c) => c.itemId === itemId);
+      if (index === -1) return prev;
+      const realIndex = index;
       return prev.filter((_, i) => i !== realIndex);
     });
   }
 
-  function removeByUid(cartUid: string) {
+  function removeLine(cartUid: string) {
     setCart((prev) => prev.filter((x) => x.uid !== cartUid));
   }
 
-  function updateComment(cartUid: string, comment: string) {
+  function setLineComment(cartUid: string, comment: string) {
     setCart((prev) =>
       prev.map((x) => (x.uid === cartUid ? { ...x, comment } : x))
     );
@@ -407,14 +363,22 @@ export default function Home() {
     return m;
   }, [cart]);
 
+  const isSearching = q.trim().length > 0;
+
   const filteredMenu = useMemo(() => {
     const query = q.trim().toLowerCase();
-    const base = MENU.filter((it) => it.category === activeCategory);
+
+    // Om du inte söker: visa bara aktuell kategori.
+    // Om du söker: sök i hela menyn (alla kategorier).
+    const base = query
+      ? MENU
+      : MENU.filter((it) => it.category === activeCategory);
 
     if (!query) return base;
 
     return base.filter((it) => {
-      const hay = `${it.no ?? ""} ${it.name} ${it.desc ?? ""}`.toLowerCase();
+      // Inkludera även kategori i sökningen så man kan söka på t.ex. "pasta"
+      const hay = `${it.no ?? ""} ${it.name} ${it.desc ?? ""} ${it.category}`.toLowerCase();
       return hay.includes(query);
     });
   }, [activeCategory, q]);
@@ -468,11 +432,11 @@ export default function Home() {
           {/* Sök */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <div className="flex-1">
-              <label className="sr-only">Sök i kategorin</label>
+              <label className="sr-only">Sök i hela menyn</label>
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder={`Sök i "${activeCategory}"…`}
+                placeholder="Sök i hela menyn…"
                 className={cx(
                   "w-full rounded-2xl bg-white px-4 py-3 text-sm text-slate-900",
                   "ring-1 ring-slate-300 placeholder:text-slate-400",
@@ -527,10 +491,12 @@ export default function Home() {
             <div className="mb-4 flex items-end justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-xl font-extrabold text-slate-900 truncate">
-                  {activeCategory}
+                  {isSearching ? "Sökresultat" : activeCategory}
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Tryck “Lägg till” för att lägga en rad i varukorgen.
+                  {isSearching
+                    ? "Visar träffar i hela menyn."
+                    : "Tryck “Lägg till” för att lägga en rad i varukorgen."}
                 </p>
               </div>
               <div className="text-sm font-semibold text-slate-600">
@@ -571,6 +537,12 @@ export default function Home() {
                             <div className="font-extrabold text-slate-900 truncate">
                               {item.name}
                             </div>
+
+                            {isSearching ? (
+                              <span className="ml-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                {item.category}
+                              </span>
+                            ) : null}
                           </div>
 
                           {item.desc ? (
@@ -619,7 +591,8 @@ export default function Home() {
                           <Button
                             onClick={() => addToCart(item.id)}
                             variant="secondary"
-                            className="px-3 py-2"
+                            className="mt-1"
+                            title="Lägg en rad i varukorgen"
                           >
                             Lägg till
                           </Button>
@@ -633,90 +606,85 @@ export default function Home() {
           </Card>
 
           {/* VARUKORG */}
-          <div className="space-y-4">
-            <Card className="p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-extrabold text-slate-900">Varukorg</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Varje rad kan ha sin egen kommentar.
-                  </p>
-                </div>
-
-                <Button
-                  onClick={clearCart}
-                  variant="ghost"
-                  className="px-3"
-                  disabled={cartLines.length === 0}
-                  title="Töm varukorgen"
-                >
-                  Töm
-                </Button>
+          <Card className="p-5">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-xl font-extrabold text-slate-900 truncate">
+                  Varukorg
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Varje rad kan ha egen kommentar.
+                </p>
               </div>
+              <Button
+                variant="ghost"
+                onClick={clearCart}
+                disabled={cartLines.length === 0}
+                title="Töm varukorgen"
+              >
+                Töm
+              </Button>
+            </div>
 
-              {cartLines.length === 0 ? (
-                <div className="rounded-2xl bg-slate-50 p-6 text-center ring-1 ring-slate-200">
-                  <div className="text-lg font-semibold text-slate-900">
-                    Varukorgen är tom
-                  </div>
-                  <div className="mt-1 text-sm text-slate-600">
-                    Lägg till från menyn så visas det här.
-                  </div>
+            {cartLines.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 p-6 text-center ring-1 ring-slate-200">
+                <div className="text-lg font-semibold text-slate-900">
+                  Tom varukorg
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {cartLines.map(({ uid: lineUid, item, comment }) => (
-                    <div
-                      key={lineUid}
-                      className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-slate-900 truncate">
-                            {item.name}
-                          </div>
-                          <div className="mt-1 text-sm text-slate-600">
-                            {money(item.price)}
-                            {item.desc ? (
-                              <>
-                                <span className="mx-2 text-slate-300">•</span>
-                                <span className="truncate">{item.desc}</span>
-                              </>
-                            ) : null}
-                          </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  Lägg till något från menyn så dyker det upp här.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cartLines.map((line, idx) => (
+                  <div
+                    key={line.uid}
+                    className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-slate-900">
+                          {line.item.name}
                         </div>
-
-                        <Button
-                          onClick={() => removeByUid(lineUid)}
-                          variant="secondary"
-                          className="px-3 py-2"
-                          title="Ta bort just denna rad"
-                        >
-                          Ta bort
-                        </Button>
+                        <div className="mt-0.5 text-sm text-slate-600">
+                          {money(line.item.price)}
+                        </div>
                       </div>
 
-                      <div className="mt-4">
-                        <label className="text-sm font-semibold text-slate-800">
-                          Kommentar (för just denna)
-                        </label>
-                        <input
-                          value={comment}
-                          onChange={(e) => updateComment(lineUid, e.target.value)}
-                          placeholder="t.ex. ingen lök"
-                          className={cx(
-                            "mt-2 w-full rounded-xl bg-white px-3 py-2 text-slate-900",
-                            "ring-1 ring-slate-300 placeholder:text-slate-400",
-                            "focus:outline-none focus:ring-2 focus:ring-amber-500"
-                          )}
-                        />
-                      </div>
+                      <Button
+                        variant="ghost"
+                        onClick={() => removeLine(line.uid)}
+                        title="Ta bort raden"
+                      >
+                        Ta bort
+                      </Button>
                     </div>
-                  ))}
 
-                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
-                    <div className="text-sm font-semibold text-slate-700">Totalt</div>
-                    <div className="text-xl font-extrabold text-slate-900">
+                    <div className="mt-3">
+                      <label className="text-xs font-bold text-slate-700">
+                        Kommentar (valfritt)
+                      </label>
+                      <input
+                        value={line.comment}
+                        onChange={(e) => setLineComment(line.uid, e.target.value)}
+                        placeholder="Ex: utan lök, extra sås…"
+                        className={cx(
+                          "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-sm text-slate-900",
+                          "ring-1 ring-slate-300 placeholder:text-slate-400",
+                          "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        )}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-amber-900">
+                      Totalt
+                    </div>
+                    <div className="text-xl font-extrabold text-amber-950">
                       {money(total)}
                     </div>
                   </div>
@@ -724,68 +692,40 @@ export default function Home() {
                   <Button
                     onClick={goToCheckout}
                     variant="primary"
-                    className="w-full py-3 text-base"
+                    className="mt-4 w-full py-3"
+                    title="Gå vidare till checkout"
                   >
                     Beställ
                   </Button>
                 </div>
-              )}
-            </Card>
-
-            <Card className="p-5">
-              <div className="text-sm font-extrabold text-slate-900 mb-3">
-                Snabb justering (antal per sort)
               </div>
+            )}
 
-              {Object.keys(qtyById).filter((k) => (qtyById[k] ?? 0) > 0).length === 0 ? (
-                <div className="text-sm text-slate-600">
-                  När du lagt till något dyker det upp här för snabb +/−.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {MENU.filter((m) => (qtyById[m.id] ?? 0) > 0).map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-slate-800 truncate">
+            {/* Enkel sammanställning längst ned */}
+            <div className="mt-6 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+              <div className="text-sm font-extrabold text-slate-900">
+                Snabböversikt
+              </div>
+              <div className="mt-2 text-sm text-slate-700">
+                {Object.keys(qtyById).filter((k) => (qtyById[k] ?? 0) > 0).length === 0 ? (
+                  "Inget valt än."
+                ) : (
+                  <ul className="space-y-1">
+                    {MENU.filter((m) => (qtyById[m.id] ?? 0) > 0).map((m) => (
+                      <li key={m.id} className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate">
                           {m.name}
-                        </div>
-                        <div className="text-xs text-slate-500 truncate">
-                          {m.category}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => removeOne(m.id)}
-                          className="h-10 w-10 rounded-xl bg-white ring-1 ring-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                          aria-label={`Ta bort en ${m.name}`}
-                        >
-                          −
-                        </button>
-                        <div className="w-8 text-center font-extrabold text-slate-900">
-                          {qtyById[m.id]}
-                        </div>
-                        <button
-                          onClick={() => addToCart(m.id)}
-                          className="h-10 w-10 rounded-xl bg-white ring-1 ring-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                          aria-label={`Lägg till en ${m.name}`}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-        </div>
-
-        <div className="mt-8 text-xs text-slate-500">
-          Priser och meny baserade på pizzerians menylista.
+                        </span>
+                        <span className="shrink-0 font-bold">
+                          x{qtyById[m.id] ?? 0}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
     </main>
