@@ -187,6 +187,20 @@ function EtaSelect({
 
 /** ------------------------------------------------------ */
 
+// ✅ Sortering: "Klar" sist (men behåll created_at-desc inom grupper)
+function sortActiveOrders(list: DbOrder[]) {
+  return [...list].sort((a, b) => {
+    const aDone =
+      String(a.status) === "Klar" || String(a.status).startsWith("Klar");
+    const bDone =
+      String(b.status) === "Klar" || String(b.status).startsWith("Klar");
+
+    if (aDone !== bDone) return aDone ? 1 : -1;
+
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+}
+
 export default function AdminPage() {
   const [isAuthed, setIsAuthed] = useState(false);
 
@@ -290,28 +304,24 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   const [orders, setOrders] = useState<DbOrder[]>([]);
   const [archived, setArchived] = useState<DbOrder[]>([]);
 
-  // Första laddningen
   const [loading, setLoading] = useState(true);
-  // Bakgrundsuppdatering (utan layout shift)
   const [refreshing, setRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
   const lastSeenIdsRef = useRef<Set<string>>(new Set());
   const initialLoadedRef = useRef(false);
 
-  // ⭐ vilka ordrar ska "glowa" just nu (nyinkomna)
   const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
   const glowTimersRef = useRef<Record<string, number>>({});
 
-  // ✅ NYTT: kolumn-antal baserat på bredd (1 / 2 / 3)
   const [colCount, setColCount] = useState(1);
 
   useEffect(() => {
     const compute = () => {
       const w = window.innerWidth;
-      if (w >= 1280) setColCount(3); // xl
-      else if (w >= 768) setColCount(2); // md
-      else setColCount(1); // mobile
+      if (w >= 1280) setColCount(3);
+      else if (w >= 768) setColCount(2);
+      else setColCount(1);
     };
     compute();
     window.addEventListener("resize", compute);
@@ -323,7 +333,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     [showArchive, archived, orders]
   );
 
-  // ✅ NYTT: fördela ordrar i kolumner "i sidled först"
   const columns = useMemo(() => {
     const cols: DbOrder[][] = Array.from({ length: colCount }, () => []);
     visible.forEach((o, idx) => {
@@ -383,7 +392,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     const activeSafe = (active ?? []) as DbOrder[];
     const arcSafe = (arc ?? []) as DbOrder[];
 
-    // 🔔 Pling + glow vid NYA ordrar (efter första laddningen)
     if (initialLoadedRef.current) {
       const prevIds = lastSeenIdsRef.current;
       const newOnes = activeSafe.filter((o) => !prevIds.has(o.id));
@@ -398,7 +406,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     lastSeenIdsRef.current = new Set(activeSafe.map((o) => o.id));
     initialLoadedRef.current = true;
 
-    setOrders(activeSafe);
+    setOrders(sortActiveOrders(activeSafe));
     setArchived(arcSafe);
 
     hasLoadedOnceRef.current = true;
@@ -417,7 +425,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       return;
     }
 
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    // Uppdatera lokalt + sortera så KLAR hamnar sist direkt
+    setOrders((prev) =>
+      sortActiveOrders(prev.map((o) => (o.id === id ? { ...o, status } : o)))
+    );
     setArchived((prev) =>
       prev.map((o) => (o.id === id ? { ...o, status } : o))
     );
@@ -554,7 +565,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
-        {/* ✅ PUSSEL + FYLLER I SIDLED FÖRST: manuella kolumner med flex */}
         <div className="flex gap-4">
           {columns.map((col, colIdx) => (
             <div key={colIdx} className="flex-1 flex flex-col gap-4">
@@ -564,6 +574,10 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 const time = formatTimeFromIso(o.created_at);
 
                 const isNewStatus = !showArchive && o.status === "Ny";
+                const isDone =
+                  !showArchive &&
+                  (String(o.status) === "Klar" ||
+                    String(o.status).startsWith("Klar"));
                 const hasAnyComment = items.some((it) => !!it.comment?.trim());
                 const eta = String(o.status ?? "").startsWith("Tillagas")
                   ? parseEtaLabel(String(o.status))
@@ -577,7 +591,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     className={cx(
                       "p-4",
                       isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
-                      shouldGlow && "order-glow"
+                      shouldGlow && "order-glow",
+                      // ✅ HELA BRICKAN LJUSGRÖN NÄR KLAR
+                      isDone && "bg-emerald-50 ring-2 ring-emerald-200"
                     )}
                   >
                     {!showArchive && (
@@ -629,7 +645,12 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                       {o.customer_phone ?? "—"}
                     </div>
 
-                    <div className="mt-4 border-t border-slate-200 pt-3">
+                    <div
+                      className={cx(
+                        "mt-4 border-t pt-3",
+                        isDone ? "border-emerald-200" : "border-slate-200"
+                      )}
+                    >
                       <div className="font-semibold text-slate-900">
                         Innehåll
                       </div>
@@ -640,7 +661,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                           return (
                             <li
                               key={idx}
-                              className="rounded-xl bg-white p-3 ring-1 ring-slate-200"
+                              className={cx(
+                                "rounded-xl p-3 ring-1",
+                                // ✅ även inner-rader får grön ton när order är Klar
+                                isDone
+                                  ? "bg-emerald-50/60 ring-emerald-200"
+                                  : "bg-white ring-slate-200"
+                              )}
                             >
                               <div className="font-semibold text-slate-900">
                                 {it.qty}× {it.name}
@@ -671,7 +698,15 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                       </ul>
 
                       {typeof o.total === "number" && (
-                        <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
+                        <div
+                          className={cx(
+                            "mt-3 flex items-center justify-between rounded-xl px-4 py-3 ring-1",
+                            // ✅ total-rutan får också grön ton när Klar
+                            isDone
+                              ? "bg-emerald-100/60 ring-emerald-200"
+                              : "bg-slate-50 ring-slate-200"
+                          )}
+                        >
                           <span className="text-sm font-semibold text-slate-700">
                             Totalt
                           </span>
@@ -705,9 +740,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             </div>
           ))}
         </div>
-
-        {/* Bonus: på mobil vill vi inte ha 3 flex-kolumner som blir för smala */}
-        {/* Det hanteras via colCount (1/2/3) så flex blir automatiskt rätt */}
       </div>
     </main>
   );
