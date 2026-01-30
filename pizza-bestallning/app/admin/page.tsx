@@ -4,29 +4,28 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
 type DbOrder = {
-  id: string; // uuid
-  created_at: string; // timestamptz
-  status: "Ny" | "Tillagas" | "Klar" | string;
+  id: string;
+  created_at: string;
+  status: "Ny" | "Tillagas" | "Klar" | "Pending" | string;
   customer_name: string | null;
   customer_phone: string | null;
-  items: { name: string; qty: number; comment?: string }[] | any; // jsonb
+  items: { name: string; qty: number; comment?: string }[] | any;
   total: number | null;
   archived_at: string | null;
+  paid_at: string | null;
 };
 
 const NEW_ORDER_SOUND =
   "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
 
-// ✅ PIN (MVP)
 const ADMIN_PIN = "1234";
-const ADMIN_AUTH_KEY = "admin-auth-ok"; // localStorage key
+const ADMIN_AUTH_KEY = "admin-auth-ok";
 
 function formatTimeFromIso(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 }
 
-/** ---------- UI helpers (enkelt, i samma fil) ---------- */
 function cx(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -98,7 +97,7 @@ function Badge({
   tone = "neutral",
 }: {
   children: React.ReactNode;
-  tone?: "neutral" | "new" | "cooking" | "done" | "comment";
+  tone?: "neutral" | "new" | "cooking" | "done" | "comment" | "pending";
 }) {
   const tones: Record<string, string> = {
     neutral: "bg-slate-100 text-slate-700 ring-1 ring-slate-200",
@@ -106,6 +105,7 @@ function Badge({
     cooking: "bg-sky-100 text-sky-900 ring-1 ring-sky-200",
     done: "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200",
     comment: "bg-yellow-100 text-yellow-900 ring-1 ring-yellow-200",
+    pending: "bg-slate-200 text-slate-800 ring-1 ring-slate-300",
   };
   return (
     <span
@@ -121,6 +121,7 @@ function Badge({
 
 function StatusBadge({ status }: { status: DbOrder["status"] }) {
   const s = String(status ?? "");
+  if (s === "Pending") return <Badge tone="pending">Pending</Badge>;
   if (s === "Ny" || s.startsWith("Ny ")) return <Badge tone="new">Ny</Badge>;
   if (s === "Klar" || s.startsWith("Klar "))
     return <Badge tone="done">Klar</Badge>;
@@ -132,6 +133,16 @@ function StatusBadge({ status }: { status: DbOrder["status"] }) {
 function parseEtaLabel(status: string) {
   const m = status.match(/Tillagas\s*[•\-]\s*(.+)$/i);
   return m?.[1]?.trim() || "";
+}
+
+function etaLabelToMinutes(label: string): number | null {
+  const s = String(label || "").trim().toLowerCase();
+  const m = s.match(/^(\d+)\s*min$/i);
+  if (m) return Number(m[1]);
+  if (s === "1h+") return 60;
+  const h = s.match(/^(\d+)\s*h$/i);
+  if (h) return Number(h[1]) * 60;
+  return null;
 }
 
 function EtaSelect({
@@ -185,18 +196,13 @@ function EtaSelect({
   );
 }
 
-/** ------------------------------------------------------ */
-
-// ✅ Sortering: "Klar" sist (men behåll created_at-desc inom grupper)
 function sortActiveOrders(list: DbOrder[]) {
   return [...list].sort((a, b) => {
     const aDone =
       String(a.status) === "Klar" || String(a.status).startsWith("Klar");
     const bDone =
       String(b.status) === "Klar" || String(b.status).startsWith("Klar");
-
     if (aDone !== bDone) return aDone ? 1 : -1;
-
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 }
@@ -214,10 +220,7 @@ export default function AdminPage() {
     setIsAuthed(false);
   }
 
-  if (!isAuthed) {
-    return <AdminLogin onAuthed={() => setIsAuthed(true)} />;
-  }
-
+  if (!isAuthed) return <AdminLogin onAuthed={() => setIsAuthed(true)} />;
   return <AdminApp onLogout={logout} />;
 }
 
@@ -335,9 +338,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   const columns = useMemo(() => {
     const cols: DbOrder[][] = Array.from({ length: colCount }, () => []);
-    visible.forEach((o, idx) => {
-      cols[idx % colCount].push(o);
-    });
+    visible.forEach((o, idx) => cols[idx % colCount].push(o));
     return cols;
   }, [visible, colCount]);
 
@@ -366,27 +367,29 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     if (firstLoad) setLoading(true);
     else setRefreshing(true);
 
+    // ✅ Visa ENDAST BETALDA ordrar
     const activeQ = supabase
       .from("orders")
       .select(
-        "id, created_at, status, customer_name, customer_phone, items, total, archived_at"
+        "id, created_at, status, customer_name, customer_phone, items, total, archived_at, paid_at"
       )
       .is("archived_at", null)
+      .not("paid_at", "is", null)
       .order("created_at", { ascending: false });
 
     const archivedQ = supabase
       .from("orders")
       .select(
-        "id, created_at, status, customer_name, customer_phone, items, total, archived_at"
+        "id, created_at, status, customer_name, customer_phone, items, total, archived_at, paid_at"
       )
       .not("archived_at", "is", null)
+      .not("paid_at", "is", null)
       .order("archived_at", { ascending: false });
 
     const [{ data: active, error: activeErr }, { data: arc, error: arcErr }] =
       await Promise.all([activeQ, archivedQ]);
 
-    if (activeErr)
-      console.log("Kunde inte hämta aktiva ordrar:", activeErr.message);
+    if (activeErr) console.log("Kunde inte hämta aktiva:", activeErr.message);
     if (arcErr) console.log("Kunde inte hämta arkiv:", arcErr.message);
 
     const activeSafe = (active ?? []) as DbOrder[];
@@ -395,7 +398,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     if (initialLoadedRef.current) {
       const prevIds = lastSeenIdsRef.current;
       const newOnes = activeSafe.filter((o) => !prevIds.has(o.id));
-
       if (newOnes.length > 0) {
         const audio = new Audio(NEW_ORDER_SOUND);
         audio.play().catch(() => {});
@@ -415,22 +417,52 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   }
 
   async function setStatus(id: string, status: DbOrder["status"]) {
-    const { error } = await supabase
-      .from("orders")
-      .update({ status })
-      .eq("id", id);
+    const statusStr = String(status);
+    const isCooking = statusStr.startsWith("Tillagas");
+    const isDone = statusStr === "Klar";
 
-    if (error) {
-      alert("Kunde inte uppdatera status: " + error.message);
+    let etaMinutes: number | undefined = undefined;
+
+    if (isCooking) {
+      const etaLabel = parseEtaLabel(statusStr);
+      const minutes = etaLabelToMinutes(etaLabel);
+      if (!minutes) {
+        alert("Välj en giltig tid (t.ex. 15 min).");
+        return;
+      }
+      etaMinutes = minutes;
+    }
+
+    const res = await fetch("/api/orders/update-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: id,
+        status: isCooking ? "Tillagas" : isDone ? "Klar" : "Ny",
+        etaMinutes,
+      }),
+    });
+
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch {}
+
+    if (!res.ok) {
+      const msg =
+        (data && (data.detail || data.error)) || `Serverfel (${res.status})`;
+      alert("Kunde inte uppdatera status: " + msg);
       return;
     }
 
-    // Uppdatera lokalt + sortera så KLAR hamnar sist direkt
+    const nextStatus = (data?.status as string | undefined) ?? statusStr;
+
     setOrders((prev) =>
-      sortActiveOrders(prev.map((o) => (o.id === id ? { ...o, status } : o)))
+      sortActiveOrders(prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o)))
     );
     setArchived((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status } : o))
+      prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o))
     );
   }
 
@@ -456,9 +488,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        () => {
-          fetchOrders();
-        }
+        () => fetchOrders()
       )
       .subscribe();
 
@@ -477,28 +507,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
-      <style jsx global>{`
-        @keyframes orderGlow {
-          0% {
-            box-shadow: 0 0 0 rgba(251, 191, 36, 0);
-          }
-          35% {
-            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.22),
-              0 0 28px rgba(251, 191, 36, 0.35);
-          }
-          70% {
-            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.18),
-              0 0 22px rgba(251, 191, 36, 0.28);
-          }
-          100% {
-            box-shadow: 0 0 0 rgba(251, 191, 36, 0);
-          }
-        }
-        .order-glow {
-          animation: orderGlow 1.4s ease-in-out infinite;
-        }
-      `}</style>
-
       <div className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="mx-auto max-w-6xl px-5 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -507,31 +515,22 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 Adminsida il-forno
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} •
-                Orderhantering
+                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} • Betalda ordrar
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setShowArchive((s) => !s)}
-                variant="secondary"
-              >
+              <Button onClick={() => setShowArchive((s) => !s)} variant="secondary">
                 {showArchive ? "Visa aktiva" : "Visa arkiv"}
               </Button>
-              <Button onClick={onLogout} variant="secondary" title="Logga ut">
+              <Button onClick={onLogout} variant="secondary">
                 Logga ut
               </Button>
             </div>
           </div>
 
           {!loading && (
-            <div
-              className={cx(
-                "mt-2 h-5 text-sm text-slate-500 transition-opacity",
-                refreshing ? "opacity-100" : "opacity-0"
-              )}
-            >
+            <div className={cx("mt-2 h-5 text-sm text-slate-500 transition-opacity", refreshing ? "opacity-100" : "opacity-0")}>
               Uppdaterar…
             </div>
           )}
@@ -539,28 +538,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <div className="mx-auto max-w-6xl px-5 py-5">
-        {loading && (
-          <Card className="p-5 text-slate-700">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 animate-pulse rounded-2xl bg-slate-100" />
-              <div className="space-y-2">
-                <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
-                <div className="h-3 w-72 animate-pulse rounded bg-slate-100" />
-              </div>
-            </div>
-          </Card>
-        )}
-
         {!loading && visible.length === 0 && (
           <div className="py-16 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 ring-1 ring-slate-200">
-              <span className="text-xl">🧾</span>
-            </div>
             <div className="font-semibold text-slate-700">
-              {showArchive ? "Inga arkiverade ordrar ännu." : "Inga ordrar ännu."}
+              {showArchive ? "Inga arkiverade ordrar ännu." : "Inga betalda ordrar ännu."}
             </div>
             <div className="mt-1 text-sm text-slate-500">
-              Nya ordrar dyker upp här automatiskt.
+              Betalda ordrar dyker upp här automatiskt.
             </div>
           </div>
         )}
@@ -576,14 +560,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 const isNewStatus = !showArchive && o.status === "Ny";
                 const isDone =
                   !showArchive &&
-                  (String(o.status) === "Klar" ||
-                    String(o.status).startsWith("Klar"));
+                  (String(o.status) === "Klar" || String(o.status).startsWith("Klar"));
                 const hasAnyComment = items.some((it) => !!it.comment?.trim());
                 const eta = String(o.status ?? "").startsWith("Tillagas")
                   ? parseEtaLabel(String(o.status))
                   : "";
-
-                const shouldGlow = !showArchive && glowIds.has(o.id);
 
                 return (
                   <Card
@@ -591,20 +572,16 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     className={cx(
                       "p-4",
                       isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
-                      shouldGlow && "order-glow",
-                      // ✅ HELA BRICKAN LJUSGRÖN NÄR KLAR
                       isDone && "bg-emerald-50 ring-2 ring-emerald-200"
                     )}
                   >
-                    {!showArchive && (
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-sm text-slate-600">
-                          <span className="font-semibold text-slate-800">
-                            Order
-                          </span>{" "}
-                          <span className="text-slate-400">•</span> {time}
-                        </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="text-sm text-slate-600">
+                        <span className="font-semibold text-slate-800">Order</span>{" "}
+                        <span className="text-slate-400">•</span> {time}
+                      </div>
 
+                      {!showArchive && (
                         <Button
                           onClick={() => archiveOrder(o.id)}
                           variant="secondary"
@@ -613,27 +590,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         >
                           Arkivera
                         </Button>
-                      </div>
-                    )}
-
-                    {showArchive && (
-                      <div className="text-sm text-slate-600">
-                        <span className="font-semibold text-slate-800">
-                          Order
-                        </span>{" "}
-                        <span className="text-slate-400">•</span> {time}
-                      </div>
-                    )}
+                      )}
+                    </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <div className="text-base font-bold text-slate-900">
-                        Status
-                      </div>
+                      <div className="text-base font-bold text-slate-900">Status</div>
                       <StatusBadge status={o.status} />
-                      {isNewStatus && <Badge tone="new">NY</Badge>}
-                      {hasAnyComment && (
-                        <Badge tone="comment">💬 Kommentar</Badge>
-                      )}
+                      {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
                       {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                     </div>
 
@@ -645,68 +608,32 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                       {o.customer_phone ?? "—"}
                     </div>
 
-                    <div
-                      className={cx(
-                        "mt-4 border-t pt-3",
-                        isDone ? "border-emerald-200" : "border-slate-200"
-                      )}
-                    >
-                      <div className="font-semibold text-slate-900">
-                        Innehåll
-                      </div>
-
+                    <div className="mt-4 border-t border-slate-200 pt-3">
+                      <div className="font-semibold text-slate-900">Innehåll</div>
                       <ul className="mt-3 space-y-2">
-                        {items.map((it, idx) => {
-                          const c = it.comment?.trim();
-                          return (
-                            <li
-                              key={idx}
-                              className={cx(
-                                "rounded-xl p-3 ring-1",
-                                // ✅ även inner-rader får grön ton när order är Klar
-                                isDone
-                                  ? "bg-emerald-50/60 ring-emerald-200"
-                                  : "bg-white ring-slate-200"
-                              )}
-                            >
-                              <div className="font-semibold text-slate-900">
-                                {it.qty}× {it.name}
+                        {items.map((it, idx) => (
+                          <li
+                            key={idx}
+                            className="rounded-xl p-3 ring-1 bg-white ring-slate-200"
+                          >
+                            <div className="font-semibold text-slate-900">
+                              {it.qty}× {it.name}
+                            </div>
+                            {it.comment?.trim() ? (
+                              <div className="mt-2 text-sm text-slate-800">
+                                💬 {it.comment.trim()}
                               </div>
-
-                              {c ? (
-                                <div className="mt-2 rounded-xl bg-yellow-50 px-3 py-2 ring-1 ring-yellow-200">
-                                  <div className="flex items-start gap-2">
-                                    <span className="mt-0.5">💬</span>
-                                    <div className="min-w-0">
-                                      <div className="text-xs font-bold text-yellow-900">
-                                        Kundkommentar
-                                      </div>
-                                      <div className="mt-0.5 text-sm font-semibold text-slate-900 break-words">
-                                        {c}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="mt-1 text-sm text-slate-400">
-                                  Ingen kommentar
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
+                            ) : (
+                              <div className="mt-1 text-sm text-slate-400">
+                                Ingen kommentar
+                              </div>
+                            )}
+                          </li>
+                        ))}
                       </ul>
 
                       {typeof o.total === "number" && (
-                        <div
-                          className={cx(
-                            "mt-3 flex items-center justify-between rounded-xl px-4 py-3 ring-1",
-                            // ✅ total-rutan får också grön ton när Klar
-                            isDone
-                              ? "bg-emerald-100/60 ring-emerald-200"
-                              : "bg-slate-50 ring-slate-200"
-                          )}
-                        >
+                        <div className="mt-3 flex items-center justify-between rounded-xl px-4 py-3 ring-1 bg-slate-50 ring-slate-200">
                           <span className="text-sm font-semibold text-slate-700">
                             Totalt
                           </span>
@@ -721,9 +648,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <EtaSelect
                           value={eta || ""}
-                          onSelect={(label) =>
-                            setStatus(o.id, `Tillagas • ${label}`)
-                          }
+                          onSelect={(label) => setStatus(o.id, `Tillagas • ${label}`)}
                         />
                         <Button
                           onClick={() => setStatus(o.id, "Klar")}

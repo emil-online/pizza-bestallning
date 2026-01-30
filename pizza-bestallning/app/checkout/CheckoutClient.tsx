@@ -7,6 +7,10 @@ type PendingOrder = {
   createdAt?: string;
   items: { name: string; price: number; comment?: string; qty: number }[];
   total?: number;
+
+  // ✅ NYTT: kunduppgifter
+  customerName?: string;
+  customerPhone?: string;
 };
 
 function cx(...classes: Array<string | false | undefined | null>) {
@@ -78,6 +82,48 @@ function safeNumber(v: any, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * Enkel normalisering till E.164 för svenska nummer.
+ * Exempel:
+ *  - "0701234567" -> "+46701234567"
+ *  - "0046701234567" -> "+46701234567"
+ *  - "+46701234567" -> "+46701234567"
+ *
+ * Om det inte går att tolka: returnerar null.
+ */
+function normalizePhoneSE(input: string): string | null {
+  const raw = (input || "").trim().replace(/\s+/g, "").replace(/-/g, "");
+  if (!raw) return null;
+
+  // Redan i +E.164
+  if (raw.startsWith("+")) {
+    // Minimal check: + följt av minst 8 siffror
+    const ok = /^\+\d{8,15}$/.test(raw);
+    return ok ? raw : null;
+  }
+
+  // 0046...
+  if (raw.startsWith("0046")) {
+    const rest = raw.slice(4);
+    if (!/^\d+$/.test(rest)) return null;
+    return "+46" + rest;
+  }
+
+  // 46...
+  if (raw.startsWith("46")) {
+    const rest = raw.slice(2);
+    if (!/^\d+$/.test(rest)) return null;
+    return "+46" + rest;
+  }
+
+  // 07xxxxxxxx -> +467xxxxxxxx
+  if (raw.startsWith("07") && /^\d+$/.test(raw)) {
+    return "+46" + raw.slice(1);
+  }
+
+  return null;
+}
+
 function normalizeOrder(order: PendingOrder) {
   const items = (order.items ?? [])
     .map((it) => ({
@@ -96,6 +142,10 @@ function normalizeOrder(order: PendingOrder) {
     createdAt: order.createdAt ?? new Date().toISOString(),
     items,
     total: givenTotal > 0 ? givenTotal : computedTotal,
+
+    // ✅ NYTT: följ med in i payload
+    customerName: String(order.customerName ?? "").trim(),
+    customerPhone: String(order.customerPhone ?? "").trim(),
   };
 }
 
@@ -107,6 +157,10 @@ export default function CheckoutClient() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string>("");
+
+  // ✅ NYTT: kontrollerade inputfält
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   const success = params.get("success") === "true";
   const canceled = params.get("canceled") === "true";
@@ -129,12 +183,33 @@ export default function CheckoutClient() {
       }
       const parsed = JSON.parse(raw) as PendingOrder;
       setOrder(parsed);
+
+      // ✅ Initiera inputfält från ordern om de finns
+      setCustomerName(String(parsed.customerName ?? ""));
+      setCustomerPhone(String(parsed.customerPhone ?? ""));
     } catch {
       setOrder(null);
     } finally {
       setLoading(false);
     }
   }, [success]);
+
+  // ✅ Håll sessionStorage uppdaterad när kunden fyller i uppgifter
+  useEffect(() => {
+    if (!order) return;
+    const next: PendingOrder = {
+      ...order,
+      customerName,
+      customerPhone,
+    };
+    setOrder(next);
+    try {
+      sessionStorage.setItem("pendingOrder", JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerName, customerPhone]);
 
   const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
   const total = normalized?.total ?? 0;
@@ -162,6 +237,23 @@ export default function CheckoutClient() {
       setError("Totalt belopp saknas.");
       return;
     }
+
+    // ✅ NYTT: validera kunduppgifter innan betalning startar
+    if (!payload.customerName || payload.customerName.length < 2) {
+      setError("Fyll i ditt namn (minst 2 tecken).");
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneSE(payload.customerPhone);
+    if (!normalizedPhone) {
+      setError(
+        "Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567."
+      );
+      return;
+    }
+
+    // ✅ Skicka normaliserat nummer till backend (bättre för 46elks)
+    payload.customerPhone = normalizedPhone;
 
     try {
       setPaying(true);
@@ -282,6 +374,43 @@ export default function CheckoutClient() {
                 </div>
               ) : (
                 <>
+                  {/* ✅ NYTT: Kunduppgifter */}
+                  <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                    <div className="text-sm font-semibold text-slate-800">
+                      Kontaktuppgifter (för SMS)
+                    </div>
+
+                    <label className="grid gap-1">
+                      <span className="text-xs font-semibold text-slate-700">
+                        Namn
+                      </span>
+                      <input
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="Ex: Ali"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                        autoComplete="name"
+                      />
+                    </label>
+
+                    <label className="grid gap-1">
+                      <span className="text-xs font-semibold text-slate-700">
+                        Mobilnummer
+                      </span>
+                      <input
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="Ex: 0701234567 eller +46701234567"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                        inputMode="tel"
+                        autoComplete="tel"
+                      />
+                      <span className="text-xs text-slate-500">
+                        Vi skickar SMS när din order tillagas och när den är klar.
+                      </span>
+                    </label>
+                  </div>
+
                   <ul className="mt-4 space-y-2">
                     {normalized.items.map((it, idx) => (
                       <li
