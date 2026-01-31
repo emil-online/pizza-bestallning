@@ -190,7 +190,7 @@ export default function CheckoutClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerName, customerPhone]);
 
-  // ✅ NYTT: uppdatera kommentar per rad i checkout (och spara i sessionStorage)
+  // ✅ uppdatera kommentar per rad i checkout (och spara i sessionStorage)
   function setItemComment(index: number, comment: string) {
     setOrder((prev) => {
       if (!prev) return prev;
@@ -207,7 +207,10 @@ export default function CheckoutClient() {
     });
   }
 
-  const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
+  const normalized = useMemo(
+    () => (order ? normalizeOrder(order) : null),
+    [order]
+  );
   const total = normalized?.total ?? 0;
 
   async function payWithStripe() {
@@ -219,7 +222,9 @@ export default function CheckoutClient() {
     }
 
     if (!order) {
-      setError("Ingen order hittades. Gå tillbaka och lägg något i varukorgen först.");
+      setError(
+        "Ingen order hittades. Gå tillbaka och lägg något i varukorgen först."
+      );
       return;
     }
 
@@ -241,7 +246,9 @@ export default function CheckoutClient() {
 
     const normalizedPhone = normalizePhoneSE(payload.customerPhone);
     if (!normalizedPhone) {
-      setError("Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567.");
+      setError(
+        "Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567."
+      );
       return;
     }
 
@@ -344,7 +351,9 @@ export default function CheckoutClient() {
             <Card className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-xl font-bold text-slate-900">Din order</div>
+                  <div className="text-xl font-bold text-slate-900">
+                    Din order
+                  </div>
                   <div className="mt-1 text-sm text-slate-600">
                     Kontrollera innan du betalar.
                   </div>
@@ -358,7 +367,9 @@ export default function CheckoutClient() {
                 <div className="mt-4 text-slate-600">Laddar…</div>
               ) : !normalized ? (
                 <div className="mt-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
-                  <div className="font-semibold text-slate-900">Ingen order hittades</div>
+                  <div className="font-semibold text-slate-900">
+                    Ingen order hittades
+                  </div>
                   <div className="mt-1 text-sm text-slate-600">
                     Gå tillbaka och lägg något i varukorgen.
                   </div>
@@ -379,7 +390,7 @@ export default function CheckoutClient() {
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
                         placeholder="Ex: Ali"
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-amber-500"
                         autoComplete="name"
                       />
                     </label>
@@ -392,7 +403,7 @@ export default function CheckoutClient() {
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
                         placeholder="Ex: 0701234567 eller +46701234567"
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-amber-500"
                         inputMode="tel"
                         autoComplete="tel"
                       />
@@ -402,7 +413,7 @@ export default function CheckoutClient() {
                     </label>
                   </div>
 
-                  {/* Orderrader + ✅ kommentarsruta per rad */}
+                  {/* Orderrader + kommentarsruta per rad */}
                   <ul className="mt-4 space-y-2">
                     {normalized.items.map((it, idx) => (
                       <li
@@ -415,17 +426,18 @@ export default function CheckoutClient() {
                               {it.qty}× {it.name}
                             </div>
 
-                            {/* ✅ Samma “kommentarsruta”-känsla som i varukorgen */}
                             <div className="mt-3">
                               <label className="text-xs font-bold text-slate-700">
                                 Kommentar (valfritt)
                               </label>
                               <input
                                 value={it.comment ?? ""}
-                                onChange={(e) => setItemComment(idx, e.target.value)}
+                                onChange={(e) =>
+                                  setItemComment(idx, e.target.value)
+                                }
                                 placeholder="Ex: utan lök, extra sås…"
                                 className={cx(
-                                  "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-sm text-slate-900",
+                                  "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
                                   "ring-1 ring-slate-300 placeholder:text-slate-400",
                                   "focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 )}
@@ -442,7 +454,9 @@ export default function CheckoutClient() {
                   </ul>
 
                   <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
-                    <div className="text-sm font-semibold text-slate-700">Totalt</div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      Totalt
+                    </div>
                     <div className="text-xl font-extrabold text-slate-900">
                       {total} kr
                     </div>
