@@ -12,7 +12,7 @@ const HOURS: Record<DayKey, { open: string; close: string }> = {
 };
 
 // Sista tid då en order får läggas (gäller alla dagar)
-const LAST_ORDER_TIME = "20:45";
+const LAST_ORDER_TIME = "23:50";
 
 function toMinutes(hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);

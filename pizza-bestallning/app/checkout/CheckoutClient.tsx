@@ -113,6 +113,9 @@ function normalizePhoneSE(input: string): string | null {
   return null;
 }
 
+const SERVICE_FEE_NAME = "Serviceavgift il forno";
+const SERVICE_FEE = 3;
+
 function normalizeOrder(order: PendingOrder) {
   const items = (order.items ?? [])
     .map((it) => ({
@@ -123,13 +126,21 @@ function normalizeOrder(order: PendingOrder) {
     }))
     .filter((it) => it.name.length > 0 && it.price > 0 && it.qty > 0);
 
-  const computedTotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
-  const givenTotal = safeNumber(order.total, computedTotal);
+  // Om serviceavgift redan ligger i items (t.ex. från äldre session), plocka bort den här
+  const itemsWithoutFee = items.filter((it) => it.name !== SERVICE_FEE_NAME);
+
+  const computedSubtotal = itemsWithoutFee.reduce(
+    (sum, it) => sum + it.price * it.qty,
+    0
+  );
+  const computedTotal = computedSubtotal + SERVICE_FEE;
 
   return {
     createdAt: order.createdAt ?? new Date().toISOString(),
-    items,
-    total: givenTotal > 0 ? givenTotal : computedTotal,
+    items: itemsWithoutFee,
+    subtotal: computedSubtotal,
+    serviceFee: SERVICE_FEE,
+    total: computedTotal,
     customerName: String(order.customerName ?? "").trim(),
     customerPhone: String(order.customerPhone ?? "").trim(),
   };
@@ -211,6 +222,9 @@ export default function CheckoutClient() {
     () => (order ? normalizeOrder(order) : null),
     [order]
   );
+
+  const subtotal = normalized?.subtotal ?? 0;
+  const serviceFee = normalized?.serviceFee ?? SERVICE_FEE;
   const total = normalized?.total ?? 0;
 
   async function payWithStripe() {
@@ -254,13 +268,25 @@ export default function CheckoutClient() {
 
     payload.customerPhone = normalizedPhone;
 
+    // Skicka med serviceavgiften som en rad i payload (så att backend/Stripe ser den)
+    const payloadForApi: PendingOrder = {
+      createdAt: payload.createdAt,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      items: [
+        ...payload.items,
+        { name: SERVICE_FEE_NAME, price: SERVICE_FEE, qty: 1 },
+      ],
+      total: payload.total,
+    };
+
     try {
       setPaying(true);
 
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadForApi),
       });
 
       const text = await res.text();
@@ -408,7 +434,8 @@ export default function CheckoutClient() {
                         autoComplete="tel"
                       />
                       <span className="text-xs text-slate-500">
-                        Vi skickar SMS när din order tillagas och när den är klar.
+                        Vi skickar SMS när din order tillagas och när den är
+                        klar.
                       </span>
                     </label>
                   </div>
@@ -453,12 +480,37 @@ export default function CheckoutClient() {
                     ))}
                   </ul>
 
-                  <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
-                    <div className="text-sm font-semibold text-slate-700">
-                      Totalt
-                    </div>
-                    <div className="text-xl font-extrabold text-slate-900">
-                      {total} kr
+                  {/* Snygg totalsammanställning */}
+                  <div className="mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200">
+                    <div className="px-4 py-4 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-slate-700">
+                          Ordersumma
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {subtotal} kr
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-slate-700">
+                          Serviceavgift il forno
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {serviceFee} kr
+                        </span>
+                      </div>
+
+                      <div className="h-px bg-slate-200" />
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-700">
+                          Totalt
+                        </span>
+                        <span className="text-xl font-extrabold text-slate-900">
+                          {total} kr
+                        </span>
+                      </div>
                     </div>
                   </div>
 
