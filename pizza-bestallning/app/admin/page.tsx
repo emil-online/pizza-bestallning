@@ -149,10 +149,12 @@ function EtaSelect({
   value,
   onSelect,
   disabled,
+  className,
 }: {
   value?: string;
   onSelect: (label: string) => void;
   disabled?: boolean;
+  className?: string;
 }) {
   const options = [
     "5 min",
@@ -182,7 +184,8 @@ function EtaSelect({
           "h-10 rounded-xl bg-white px-3 text-sm font-semibold text-slate-900",
           "ring-1 ring-slate-300 hover:bg-slate-50",
           "focus:outline-none focus:ring-2 focus:ring-amber-500",
-          disabled && "opacity-60 cursor-not-allowed"
+          disabled && "opacity-60 cursor-not-allowed",
+          className
         )}
       >
         <option value="">Välj tid…</option>
@@ -367,7 +370,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     if (firstLoad) setLoading(true);
     else setRefreshing(true);
 
-    // ✅ Visa ENDAST BETALDA ordrar
     const activeQ = supabase
       .from("orders")
       .select(
@@ -459,7 +461,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     const nextStatus = (data?.status as string | undefined) ?? statusStr;
 
     setOrders((prev) =>
-      sortActiveOrders(prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o)))
+      sortActiveOrders(
+        prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o))
+      )
     );
     setArchived((prev) =>
       prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o))
@@ -515,12 +519,16 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 Adminsida il-forno
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} • Betalda ordrar
+                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} • Betalda
+                ordrar
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <Button onClick={() => setShowArchive((s) => !s)} variant="secondary">
+              <Button
+                onClick={() => setShowArchive((s) => !s)}
+                variant="secondary"
+              >
                 {showArchive ? "Visa aktiva" : "Visa arkiv"}
               </Button>
               <Button onClick={onLogout} variant="secondary">
@@ -530,7 +538,12 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
           </div>
 
           {!loading && (
-            <div className={cx("mt-2 h-5 text-sm text-slate-500 transition-opacity", refreshing ? "opacity-100" : "opacity-0")}>
+            <div
+              className={cx(
+                "mt-2 h-5 text-sm text-slate-500 transition-opacity",
+                refreshing ? "opacity-100" : "opacity-0"
+              )}
+            >
               Uppdaterar…
             </div>
           )}
@@ -538,17 +551,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <div className="mx-auto max-w-6xl px-5 py-5">
-        {!loading && visible.length === 0 && (
-          <div className="py-16 text-center">
-            <div className="font-semibold text-slate-700">
-              {showArchive ? "Inga arkiverade ordrar ännu." : "Inga betalda ordrar ännu."}
-            </div>
-            <div className="mt-1 text-sm text-slate-500">
-              Betalda ordrar dyker upp här automatiskt.
-            </div>
-          </div>
-        )}
-
         <div className="flex gap-4">
           {columns.map((col, colIdx) => (
             <div key={colIdx} className="flex-1 flex flex-col gap-4">
@@ -560,7 +562,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 const isNewStatus = !showArchive && o.status === "Ny";
                 const isDone =
                   !showArchive &&
-                  (String(o.status) === "Klar" || String(o.status).startsWith("Klar"));
+                  (String(o.status) === "Klar" ||
+                    String(o.status).startsWith("Klar"));
+
                 const hasAnyComment = items.some((it) => !!it.comment?.trim());
                 const eta = String(o.status ?? "").startsWith("Tillagas")
                   ? parseEtaLabel(String(o.status))
@@ -572,7 +576,8 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     className={cx(
                       "p-4",
                       isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
-                      isDone && "bg-emerald-50 ring-2 ring-emerald-200"
+                      // ✅ Tvinga grön bakgrund även om Card har bg-white
+                      isDone && "!bg-emerald-100/60 !ring-emerald-200 ring-2"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -585,7 +590,12 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         <Button
                           onClick={() => archiveOrder(o.id)}
                           variant="secondary"
-                          className="px-3 py-1.5"
+                          className={cx(
+                            "px-3 py-1.5",
+                            // ✅ Tvinga bort vit bg på knappen
+                            isDone &&
+                              "!bg-emerald-50 !ring-emerald-200 hover:!bg-emerald-50"
+                          )}
                           title="Arkivera order"
                         >
                           Arkivera
@@ -614,7 +624,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         {items.map((it, idx) => (
                           <li
                             key={idx}
-                            className="rounded-xl p-3 ring-1 bg-white ring-slate-200"
+                            className={cx(
+                              "rounded-xl p-3 ring-1 ring-slate-200",
+                              // ✅ Tvinga bort vit bg på item-rader
+                              isDone ? "!bg-emerald-50" : "bg-white"
+                            )}
                           >
                             <div className="font-semibold text-slate-900">
                               {it.qty}× {it.name}
@@ -633,7 +647,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                       </ul>
 
                       {typeof o.total === "number" && (
-                        <div className="mt-3 flex items-center justify-between rounded-xl px-4 py-3 ring-1 bg-slate-50 ring-slate-200">
+                        <div
+                          className={cx(
+                            "mt-3 flex items-center justify-between rounded-xl px-4 py-3 ring-1 ring-slate-200",
+                            // ✅ Tvinga bort grå/vit bg på total
+                            isDone ? "!bg-emerald-50" : "bg-slate-50"
+                          )}
+                        >
                           <span className="text-sm font-semibold text-slate-700">
                             Totalt
                           </span>
@@ -649,6 +669,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         <EtaSelect
                           value={eta || ""}
                           onSelect={(label) => setStatus(o.id, `Tillagas • ${label}`)}
+                          // ✅ Tvinga bort vit bg på select
+                          className={cx(
+                            isDone &&
+                              "!bg-emerald-50 !ring-emerald-200 hover:!bg-emerald-50"
+                          )}
                         />
                         <Button
                           onClick={() => setStatus(o.id, "Klar")}
