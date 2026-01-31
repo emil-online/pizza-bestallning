@@ -8,7 +8,7 @@ type PendingOrder = {
   items: { name: string; price: number; comment?: string; qty: number }[];
   total?: number;
 
-  // ✅ NYTT: kunduppgifter
+  // kunduppgifter
   customerName?: string;
   customerPhone?: string;
 };
@@ -84,39 +84,28 @@ function safeNumber(v: any, fallback = 0) {
 
 /**
  * Enkel normalisering till E.164 för svenska nummer.
- * Exempel:
- *  - "0701234567" -> "+46701234567"
- *  - "0046701234567" -> "+46701234567"
- *  - "+46701234567" -> "+46701234567"
- *
- * Om det inte går att tolka: returnerar null.
  */
 function normalizePhoneSE(input: string): string | null {
   const raw = (input || "").trim().replace(/\s+/g, "").replace(/-/g, "");
   if (!raw) return null;
 
-  // Redan i +E.164
   if (raw.startsWith("+")) {
-    // Minimal check: + följt av minst 8 siffror
     const ok = /^\+\d{8,15}$/.test(raw);
     return ok ? raw : null;
   }
 
-  // 0046...
   if (raw.startsWith("0046")) {
     const rest = raw.slice(4);
     if (!/^\d+$/.test(rest)) return null;
     return "+46" + rest;
   }
 
-  // 46...
   if (raw.startsWith("46")) {
     const rest = raw.slice(2);
     if (!/^\d+$/.test(rest)) return null;
     return "+46" + rest;
   }
 
-  // 07xxxxxxxx -> +467xxxxxxxx
   if (raw.startsWith("07") && /^\d+$/.test(raw)) {
     return "+46" + raw.slice(1);
   }
@@ -134,7 +123,6 @@ function normalizeOrder(order: PendingOrder) {
     }))
     .filter((it) => it.name.length > 0 && it.price > 0 && it.qty > 0);
 
-  // total kan ligga i order, men vi räknar om ifall den saknas eller är fel
   const computedTotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
   const givenTotal = safeNumber(order.total, computedTotal);
 
@@ -142,8 +130,6 @@ function normalizeOrder(order: PendingOrder) {
     createdAt: order.createdAt ?? new Date().toISOString(),
     items,
     total: givenTotal > 0 ? givenTotal : computedTotal,
-
-    // ✅ NYTT: följ med in i payload
     customerName: String(order.customerName ?? "").trim(),
     customerPhone: String(order.customerPhone ?? "").trim(),
   };
@@ -158,7 +144,6 @@ export default function CheckoutClient() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // ✅ NYTT: kontrollerade inputfält
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
@@ -166,7 +151,6 @@ export default function CheckoutClient() {
   const canceled = params.get("canceled") === "true";
 
   useEffect(() => {
-    // Om betalningen lyckats: töm pending order direkt så man inte kan betala igen
     if (success) {
       sessionStorage.removeItem("pendingOrder");
       setOrder(null);
@@ -184,7 +168,6 @@ export default function CheckoutClient() {
       const parsed = JSON.parse(raw) as PendingOrder;
       setOrder(parsed);
 
-      // ✅ Initiera inputfält från ordern om de finns
       setCustomerName(String(parsed.customerName ?? ""));
       setCustomerPhone(String(parsed.customerPhone ?? ""));
     } catch {
@@ -194,14 +177,10 @@ export default function CheckoutClient() {
     }
   }, [success]);
 
-  // ✅ Håll sessionStorage uppdaterad när kunden fyller i uppgifter
+  // Håll sessionStorage uppdaterad när kunden fyller i uppgifter
   useEffect(() => {
     if (!order) return;
-    const next: PendingOrder = {
-      ...order,
-      customerName,
-      customerPhone,
-    };
+    const next: PendingOrder = { ...order, customerName, customerPhone };
     setOrder(next);
     try {
       sessionStorage.setItem("pendingOrder", JSON.stringify(next));
@@ -210,6 +189,23 @@ export default function CheckoutClient() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerName, customerPhone]);
+
+  // ✅ NYTT: uppdatera kommentar per rad i checkout (och spara i sessionStorage)
+  function setItemComment(index: number, comment: string) {
+    setOrder((prev) => {
+      if (!prev) return prev;
+      const nextItems = prev.items.map((it, i) =>
+        i === index ? { ...it, comment } : it
+      );
+      const next: PendingOrder = { ...prev, items: nextItems };
+      try {
+        sessionStorage.setItem("pendingOrder", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
 
   const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
   const total = normalized?.total ?? 0;
@@ -238,7 +234,6 @@ export default function CheckoutClient() {
       return;
     }
 
-    // ✅ NYTT: validera kunduppgifter innan betalning startar
     if (!payload.customerName || payload.customerName.length < 2) {
       setError("Fyll i ditt namn (minst 2 tecken).");
       return;
@@ -246,13 +241,10 @@ export default function CheckoutClient() {
 
     const normalizedPhone = normalizePhoneSE(payload.customerPhone);
     if (!normalizedPhone) {
-      setError(
-        "Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567."
-      );
+      setError("Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567.");
       return;
     }
 
-    // ✅ Skicka normaliserat nummer till backend (bättre för 46elks)
     payload.customerPhone = normalizedPhone;
 
     try {
@@ -264,13 +256,12 @@ export default function CheckoutClient() {
         body: JSON.stringify(payload),
       });
 
-      // Läs text först så vi får tydlig info vid fel (inte bara {})
       const text = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(text);
       } catch {
-        // non-json svar
+        // non-json
       }
 
       if (!res.ok) {
@@ -374,7 +365,7 @@ export default function CheckoutClient() {
                 </div>
               ) : (
                 <>
-                  {/* ✅ NYTT: Kunduppgifter */}
+                  {/* Kunduppgifter */}
                   <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                     <div className="text-sm font-semibold text-slate-800">
                       Kontaktuppgifter (för SMS)
@@ -411,6 +402,7 @@ export default function CheckoutClient() {
                     </label>
                   </div>
 
+                  {/* Orderrader + ✅ kommentarsruta per rad */}
                   <ul className="mt-4 space-y-2">
                     {normalized.items.map((it, idx) => (
                       <li
@@ -422,17 +414,25 @@ export default function CheckoutClient() {
                             <div className="font-semibold text-slate-900">
                               {it.qty}× {it.name}
                             </div>
-                            {it.comment?.trim() ? (
-                              <div className="mt-1 text-sm text-slate-600">
-                                Kommentar:{" "}
-                                <span className="text-slate-800">{it.comment}</span>
-                              </div>
-                            ) : (
-                              <div className="mt-1 text-sm text-slate-400">
-                                Ingen kommentar
-                              </div>
-                            )}
+
+                            {/* ✅ Samma “kommentarsruta”-känsla som i varukorgen */}
+                            <div className="mt-3">
+                              <label className="text-xs font-bold text-slate-700">
+                                Kommentar (valfritt)
+                              </label>
+                              <input
+                                value={it.comment ?? ""}
+                                onChange={(e) => setItemComment(idx, e.target.value)}
+                                placeholder="Ex: utan lök, extra sås…"
+                                className={cx(
+                                  "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-sm text-slate-900",
+                                  "ring-1 ring-slate-300 placeholder:text-slate-400",
+                                  "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                )}
+                              />
+                            </div>
                           </div>
+
                           <div className="font-extrabold text-slate-900 whitespace-nowrap">
                             {it.price} kr
                           </div>
