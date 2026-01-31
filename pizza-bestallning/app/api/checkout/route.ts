@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  isOrderOpenNowStockholm,
+  orderingMessageStockholm,
+} from "@/lib/openingHours";
 
 export const runtime = "nodejs";
 
@@ -44,6 +48,14 @@ function safeItems(items: any) {
 
 export async function POST(req: Request) {
   try {
+    // ✅ BLOCKERA beställningar utanför öppettider / efter 20:45
+    if (!isOrderOpenNowStockholm()) {
+      return NextResponse.json(
+        { error: orderingMessageStockholm() },
+        { status: 403 }
+      );
+    }
+
     const stripe = new Stripe(mustEnv("STRIPE_SECRET_KEY"));
     const origin = req.headers.get("origin") ?? "http://localhost:3000";
 
@@ -96,7 +108,10 @@ export async function POST(req: Request) {
     if (insertErr || !created?.id) {
       console.error("Supabase insert error:", insertErr);
       return NextResponse.json(
-        { error: "Kunde inte skapa order i databasen", detail: insertErr?.message },
+        {
+          error: "Kunde inte skapa order i databasen",
+          detail: insertErr?.message,
+        },
         { status: 500 }
       );
     }
