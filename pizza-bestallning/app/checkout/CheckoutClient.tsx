@@ -435,7 +435,7 @@ export default function CheckoutClient() {
                                 onChange={(e) =>
                                   setItemComment(idx, e.target.value)
                                 }
-                                placeholder="Ex: utan lök, extra sås…"
+                                placeholder="Ex: utan lök"
                                 className={cx(
                                   "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
                                   "ring-1 ring-slate-300 placeholder:text-slate-400",
