@@ -65,34 +65,6 @@ export default function CustomerMobile() {
 
             {/* Höger: Totalt + varukorgsikon */}
             <div className="flex items-center gap-2">
-              {/* 🛒 Varukorgsikon */}
-              <button
-                onClick={scrollToCart}
-                className={cx(
-                  "relative flex h-11 w-11 items-center justify-center rounded-2xl",
-                  "bg-white ring-1 ring-slate-200 shadow-sm hover:bg-slate-50",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                )}
-                title="Gå till varukorgen"
-                aria-label="Gå till varukorgen"
-              >
-                <span className="text-lg">🛒</span>
-
-                {cartCount > 0 && (
-                  <span
-                    className={cx(
-                      "absolute -top-1 -right-1",
-                      "min-w-5 h-5 px-1",
-                      "rounded-full bg-amber-600 text-white",
-                      "text-[11px] font-extrabold",
-                      "flex items-center justify-center",
-                      "ring-2 ring-white"
-                    )}
-                  >
-                    {cartCount}
-                  </span>
-                )}
-              </button>
 
               {/* Totalt-ruta */}
               <div className="rounded-2xl bg-amber-100 px-3 py-2 ring-1 ring-amber-200">

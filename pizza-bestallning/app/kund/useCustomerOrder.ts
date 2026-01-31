@@ -22,7 +22,8 @@ export type MenuCategory =
   | "Halvinbakad"
   | "Parma & ruccola"
   | "Pasta"
-  | "Sallader";
+  | "Sallader"
+  | "Dryck & Tillbehör";
 
 export type MenuItem = {
   id: string;
@@ -370,53 +371,276 @@ export const MENU: MenuItem[] = [
   },
 
   // Salamipizzor
-  { id: "36-salame", category: "Salamipizzor", no: 36, name: "Salame", desc: "salami", price: 135 },
-  { id: "37-milano", category: "Salamipizzor", no: 37, name: "Milano", desc: "salami, lök, paprika", price: 140 },
-  { id: "38-parma", category: "Salamipizzor", no: 38, name: "Parma", desc: "salami, gorgonzola", price: 140 },
-  { id: "39-peperoni", category: "Salamipizzor", no: 39, name: "Peperoni", desc: "salami, feferoni", price: 140 },
+  {
+    id: "36-salame",
+    category: "Salamipizzor",
+    no: 36,
+    name: "Salame",
+    desc: "salami",
+    price: 135,
+  },
+  {
+    id: "37-milano",
+    category: "Salamipizzor",
+    no: 37,
+    name: "Milano",
+    desc: "salami, lök, paprika",
+    price: 140,
+  },
+  {
+    id: "38-parma",
+    category: "Salamipizzor",
+    no: 38,
+    name: "Parma",
+    desc: "salami, gorgonzola",
+    price: 140,
+  },
+  {
+    id: "39-peperoni",
+    category: "Salamipizzor",
+    no: 39,
+    name: "Peperoni",
+    desc: "salami, feferoni",
+    price: 140,
+  },
 
   // Gyrospizzor
-  { id: "40-gyros", category: "Gyrospizzor", no: 40, name: "Gyros", desc: "gyros, lök, feferoni, tzatziki", price: 145 },
-  { id: "41-gyros-special", category: "Gyrospizzor", no: 41, name: "Gyros special", desc: "gyros, champinjoner, lök, feferoni, tzatziki", price: 150 },
+  {
+    id: "40-gyros",
+    category: "Gyrospizzor",
+    no: 40,
+    name: "Gyros",
+    desc: "gyros, lök, feferoni, tzatziki",
+    price: 145,
+  },
+  {
+    id: "41-gyros-special",
+    category: "Gyrospizzor",
+    no: 41,
+    name: "Gyros special",
+    desc: "gyros, champinjoner, lök, feferoni, tzatziki",
+    price: 150,
+  },
 
   // Kebab & rätter
-  { id: "42-kebabpizza", category: "Kebab & rätter", no: 42, name: "Kebabpizza", desc: "kebabkött, lök, feferoni, kebabsås", price: 150, tags: ["Kebab"] },
-  { id: "43-kebabpizza-special", category: "Kebab & rätter", no: 43, name: "Kebabpizza special", desc: "kebabkött, champinjoner, lök, feferoni, kebabsås", price: 155, tags: ["Kebab"] },
-  { id: "44-kebabrulle", category: "Kebab & rätter", no: 44, name: "Kebabrulle", desc: "kebabkött, sallad, tomat, gurka, lök, feferoni, kebabsås", price: 135, tags: ["Kebab"] },
-  { id: "45-kebabtallrik", category: "Kebab & rätter", no: 45, name: "Kebabtallrik", desc: "kebabkött, pommes, sallad, tomat, gurka, lök, feferoni, kebabsås", price: 155, tags: ["Kebab"] },
-  { id: "46-kebabrulle-brod", category: "Kebab & rätter", no: 46, name: "Kebabrulle (bröd)", desc: "kebabkött, sallad, tomat, gurka, lök, feferoni, kebabsås", price: 135, tags: ["Kebab"] },
+  {
+    id: "42-kebabpizza",
+    category: "Kebab & rätter",
+    no: 42,
+    name: "Kebabpizza",
+    desc: "kebabkött, lök, feferoni, kebabsås",
+    price: 150,
+    tags: ["Kebab"],
+  },
+  {
+    id: "43-kebabpizza-special",
+    category: "Kebab & rätter",
+    no: 43,
+    name: "Kebabpizza special",
+    desc: "kebabkött, champinjoner, lök, feferoni, kebabsås",
+    price: 155,
+    tags: ["Kebab"],
+  },
+  {
+    id: "44-kebabrulle",
+    category: "Kebab & rätter",
+    no: 44,
+    name: "Kebabrulle",
+    desc: "kebabkött, sallad, tomat, gurka, lök, feferoni, kebabsås",
+    price: 135,
+    tags: ["Kebab"],
+  },
+  {
+    id: "45-kebabtallrik",
+    category: "Kebab & rätter",
+    no: 45,
+    name: "Kebabtallrik",
+    desc: "kebabkött, pommes, sallad, tomat, gurka, lök, feferoni, kebabsås",
+    price: 155,
+    tags: ["Kebab"],
+  },
+  {
+    id: "46-kebabrulle-brod",
+    category: "Kebab & rätter",
+    no: 46,
+    name: "Kebabrulle (bröd)",
+    desc: "kebabkött, sallad, tomat, gurka, lök, feferoni, kebabsås",
+    price: 135,
+    tags: ["Kebab"],
+  },
 
   // Kyckling
-  { id: "47-kycklingpizza", category: "Kyckling", no: 47, name: "Kycklingpizza", desc: "kyckling, lök, feferoni, vitlökssås", price: 150 },
-  { id: "48-kycklingpizza-special", category: "Kyckling", no: 48, name: "Kycklingpizza special", desc: "kyckling, champinjoner, lök, feferoni, vitlökssås", price: 155 },
-  { id: "49-kycklingrulle", category: "Kyckling", no: 49, name: "Kycklingrulle", desc: "kyckling, sallad, tomat, gurka, lök, feferoni, vitlökssås", price: 135 },
-  { id: "50-kycklingtallrik", category: "Kyckling", no: 50, name: "Kycklingtallrik", desc: "kyckling, pommes, sallad, tomat, gurka, lök, feferoni, vitlökssås", price: 155 },
+  {
+    id: "47-kycklingpizza",
+    category: "Kyckling",
+    no: 47,
+    name: "Kycklingpizza",
+    desc: "kyckling, lök, feferoni, vitlökssås",
+    price: 150,
+  },
+  {
+    id: "48-kycklingpizza-special",
+    category: "Kyckling",
+    no: 48,
+    name: "Kycklingpizza special",
+    desc: "kyckling, champinjoner, lök, feferoni, vitlökssås",
+    price: 155,
+  },
+  {
+    id: "49-kycklingrulle",
+    category: "Kyckling",
+    no: 49,
+    name: "Kycklingrulle",
+    desc: "kyckling, sallad, tomat, gurka, lök, feferoni, vitlökssås",
+    price: 135,
+  },
+  {
+    id: "50-kycklingtallrik",
+    category: "Kyckling",
+    no: 50,
+    name: "Kycklingtallrik",
+    desc: "kyckling, pommes, sallad, tomat, gurka, lök, feferoni, vitlökssås",
+    price: 155,
+  },
 
   // Mexikanska pizzor
-  { id: "51-mexicana", category: "Mexikanska pizzor", no: 51, name: "Mexicana", desc: "taco kryddad köttfärs, lök, jalapeño, tacosås", price: 145, tags: ["Stark"] },
-  { id: "52-mexicana-special", category: "Mexikanska pizzor", no: 52, name: "Mexicana special", desc: "taco kryddad köttfärs, lök, jalapeño, tacosås, nachochips", price: 150, tags: ["Stark"] },
+  {
+    id: "51-mexicana",
+    category: "Mexikanska pizzor",
+    no: 51,
+    name: "Mexicana",
+    desc: "taco kryddad köttfärs, lök, jalapeño, tacosås",
+    price: 145,
+    tags: ["Stark"],
+  },
+  {
+    id: "52-mexicana-special",
+    category: "Mexikanska pizzor",
+    no: 52,
+    name: "Mexicana special",
+    desc: "taco kryddad köttfärs, lök, jalapeño, tacosås, nachochips",
+    price: 150,
+    tags: ["Stark"],
+  },
 
   // Oxfilé & fläskfilé
-  { id: "53-oxfile", category: "Oxfilé & fläskfilé", no: 53, name: "Oxfilépizza", desc: "oxfilé, lök, champinjoner, bearnaisesås", price: 165 },
-  { id: "54-flaskfile", category: "Oxfilé & fläskfilé", no: 54, name: "Fläskfilépizza", desc: "fläskfilé, lök, champinjoner, bearnaisesås", price: 165 },
+  {
+    id: "53-oxfile",
+    category: "Oxfilé & fläskfilé",
+    no: 53,
+    name: "Oxfilépizza",
+    desc: "oxfilé, lök, champinjoner, bearnaisesås",
+    price: 165,
+  },
+  {
+    id: "54-flaskfile",
+    category: "Oxfilé & fläskfilé",
+    no: 54,
+    name: "Fläskfilépizza",
+    desc: "fläskfilé, lök, champinjoner, bearnaisesås",
+    price: 165,
+  },
 
   // Halvinbakad
-  { id: "55-halvinbakad", category: "Halvinbakad", no: 55, name: "Halvinbakad", desc: "skinka, champinjoner, räkor", price: 150, tags: ["Skaldjur"] },
+  {
+    id: "55-halvinbakad",
+    category: "Halvinbakad",
+    no: 55,
+    name: "Halvinbakad",
+    desc: "skinka, champinjoner, räkor",
+    price: 150,
+    tags: ["Skaldjur"],
+  },
 
   // Parma & ruccola
-  { id: "56-parma-ruccola", category: "Parma & ruccola", no: 56, name: "Parma & ruccola", desc: "parmaskinka, ruccola, färska tomater, parmesan", price: 165 },
+  {
+    id: "56-parma-ruccola",
+    category: "Parma & ruccola",
+    no: 56,
+    name: "Parma & ruccola",
+    desc: "parmaskinka, ruccola, färska tomater, parmesan",
+    price: 165,
+  },
 
   // Pasta
-  { id: "57-pasta-bolognese", category: "Pasta", no: 57, name: "Pasta Bolognese", desc: "klassisk köttfärssås", price: 145 },
-  { id: "58-pasta-carbonara", category: "Pasta", no: 58, name: "Pasta Carbonara", desc: "bacon, grädde", price: 145 },
+  {
+    id: "57-pasta-bolognese",
+    category: "Pasta",
+    no: 57,
+    name: "Pasta Bolognese",
+    desc: "klassisk köttfärssås",
+    price: 145,
+  },
+  {
+    id: "58-pasta-carbonara",
+    category: "Pasta",
+    no: 58,
+    name: "Pasta Carbonara",
+    desc: "bacon, grädde",
+    price: 145,
+  },
 
   // Sallader
-  { id: "59-grekisk-sallad", category: "Sallader", no: 59, name: "Grekisk sallad", desc: "fetaost, oliver, grönsaker", price: 135, tags: ["Vegetarisk"] },
-  { id: "60-kycklingsallad", category: "Sallader", no: 60, name: "Kycklingsallad", desc: "kyckling, grönsaker", price: 145 },
+  {
+    id: "59-grekisk-sallad",
+    category: "Sallader",
+    no: 59,
+    name: "Grekisk sallad",
+    desc: "fetaost, oliver, grönsaker",
+    price: 135,
+    tags: ["Vegetarisk"],
+  },
+  {
+    id: "60-kycklingsallad",
+    category: "Sallader",
+    no: 60,
+    name: "Kycklingsallad",
+    desc: "kyckling, grönsaker",
+    price: 145,
+  },
+
+  // Dryck & Tillbehör
+  {
+    id: "dryck-burk-33cl",
+    category: "Dryck & Tillbehör",
+    name: "Burk 33cl",
+    price: 20,
+  },
+  {
+    id: "dryck-flaska-50cl",
+    category: "Dryck & Tillbehör",
+    name: "Flaska 50cl",
+    price: 25,
+  },
+  {
+    id: "dryck-flaska-15l",
+    category: "Dryck & Tillbehör",
+    name: "Flaska 1,5l",
+    price: 35,
+  },
+  {
+    id: "tillbehor-bearnaisesas",
+    category: "Dryck & Tillbehör",
+    name: "Bearnaisesås",
+    price: 20,
+  },
+  {
+    id: "tillbehor-vitlokssas",
+    category: "Dryck & Tillbehör",
+    name: "Vitlökssås",
+    price: 20,
+  },
+  {
+    id: "tillbehor-pizzasallad",
+    category: "Dryck & Tillbehör",
+    name: "Pizzasallad",
+    price: 20,
+  },
 ];
 
 export const CATEGORY_ORDER: MenuCategory[] = [
   "Pizzor med skinka",
+  "Dryck & Tillbehör",
   "Köttfärspizzor",
   "Vegetariska pizzor",
   "Skaldjurspizzor",
