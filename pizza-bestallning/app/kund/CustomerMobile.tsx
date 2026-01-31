@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { CATEGORY_ORDER, money, useCustomerOrder } from "./useCustomerOrder";
 import { Button, Card, cx, tagBadges } from "./ui";
 
@@ -22,6 +23,22 @@ export default function CustomerMobile() {
     clearCart,
     goToCheckout,
   } = useCustomerOrder();
+
+  // ✅ Mini-översikt i footer – visar ALLA varor
+  // Viktigt: vi returnerar en lista så vi kan göra varje "1× Margherita" osplitbar (nowrap)
+  const cartSummaryParts = useMemo(() => {
+    if (!cartLines.length) return [];
+
+    const counts = new Map<string, number>();
+    for (const line of cartLines) {
+      const name = line.item?.name ?? "Okänd";
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+
+    return Array.from(counts.entries()).map(
+      ([name, qty]) => `${qty}× ${name}`
+    );
+  }, [cartLines]);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white pb-36">
@@ -273,9 +290,7 @@ export default function CustomerMobile() {
                     </label>
                     <input
                       value={line.comment}
-                      onChange={(e) =>
-                        setLineComment(line.uid, e.target.value)
-                      }
+                      onChange={(e) => setLineComment(line.uid, e.target.value)}
                       placeholder="Ex: utan lök, extra sås…"
                       className={cx(
                         "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-sm text-slate-900",
@@ -294,21 +309,38 @@ export default function CustomerMobile() {
       {/* Sticky footer */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto max-w-md px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          <div className="flex items-start gap-3">
+            {/* Totalt */}
+            <div className="shrink-0">
               <div className="text-xs font-semibold text-slate-600">Totalt</div>
               <div className="text-lg font-extrabold text-slate-900">
                 {money(total)}
               </div>
             </div>
+
+            {/* ✅ Alla varor, mindre text, radbryts – men aldrig mitt i "1× Margherita" */}
+            <div className="flex-1">
+              {cartLines.length === 0 ? (
+                <div className="text-[11px] text-slate-500">Varukorgen är tom</div>
+              ) : (
+                <div className="flex flex-wrap items-start gap-x-2 gap-y-1 text-[11px] leading-snug text-slate-700">
+                  {cartSummaryParts.map((part, i) => (
+                    <span key={`${part}-${i}`} className="whitespace-nowrap">
+                      {part}
+                      {i < cartSummaryParts.length - 1 ? " •" : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Beställ */}
             <Button
               onClick={goToCheckout}
               variant="primary"
               disabled={cartLines.length === 0}
-              className="py-3 px-6"
-              title={
-                cartLines.length === 0 ? "Lägg till något först" : "Gå vidare"
-              }
+              className="py-3 px-6 shrink-0"
+              title={cartLines.length === 0 ? "Lägg till något först" : "Gå vidare"}
             >
               Beställ
             </Button>
