@@ -35,9 +35,7 @@ export default function CustomerMobile() {
       counts.set(name, (counts.get(name) ?? 0) + 1);
     }
 
-    return Array.from(counts.entries()).map(
-      ([name, qty]) => `${qty}× ${name}`
-    );
+    return Array.from(counts.entries()).map(([name, qty]) => `${qty}× ${name}`);
   }, [cartLines]);
 
   return (
@@ -108,7 +106,8 @@ export default function CustomerMobile() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Sök i hela menyn…"
               className={cx(
-                "w-full rounded-2xl bg-white px-4 py-3 text-sm text-slate-900",
+                // ✅ text-base (>=16px) för att undvika mobil-zoom vid fokus
+                "w-full rounded-2xl bg-white px-4 py-3 text-base text-slate-900",
                 "ring-1 ring-slate-300 placeholder:text-slate-400",
                 "focus:outline-none focus:ring-2 focus:ring-amber-500"
               )}
@@ -135,9 +134,7 @@ export default function CustomerMobile() {
                 {isSearching ? "Sökresultat" : activeCategory}
               </h2>
               <p className="mt-1 text-xs text-slate-600">
-                {isSearching
-                  ? "Träffar i hela menyn."
-                  : "Tryck + / − för antal."}
+                {isSearching ? "Träffar i hela menyn." : "Tryck + / − för antal."}
               </p>
             </div>
             <div className="text-xs font-semibold text-slate-600">
@@ -232,9 +229,7 @@ export default function CustomerMobile() {
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900">
-                Varukorg
-              </h2>
+              <h2 className="text-base font-extrabold text-slate-900">Varukorg</h2>
               <p className="text-xs text-slate-600">Kommentar per rad.</p>
             </div>
             <Button
@@ -250,9 +245,7 @@ export default function CustomerMobile() {
 
           {cartLines.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 p-5 text-center ring-1 ring-slate-200">
-              <div className="text-sm font-semibold text-slate-900">
-                Tom varukorg
-              </div>
+              <div className="text-sm font-semibold text-slate-900">Tom varukorg</div>
               <div className="mt-1 text-xs text-slate-600">
                 Lägg till något från menyn.
               </div>
@@ -293,7 +286,8 @@ export default function CustomerMobile() {
                       onChange={(e) => setLineComment(line.uid, e.target.value)}
                       placeholder="Ex: utan lök, extra sås…"
                       className={cx(
-                        "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-sm text-slate-900",
+                        // ✅ text-base (>=16px) för att undvika mobil-zoom vid fokus
+                        "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
                         "ring-1 ring-slate-300 placeholder:text-slate-400",
                         "focus:outline-none focus:ring-2 focus:ring-amber-500"
                       )}
