@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { CATEGORY_ORDER, money, useCustomerOrder } from "./useCustomerOrder";
 import { Button, Card, cx, tagBadges } from "./ui";
 
@@ -24,8 +24,14 @@ export default function CustomerMobile() {
     goToCheckout,
   } = useCustomerOrder();
 
+  // ✅ Scroll-target för varukorgen
+  const cartRef = useRef<HTMLDivElement | null>(null);
+
+  function scrollToCart() {
+    cartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   // ✅ Mini-översikt i footer – visar ALLA varor
-  // Viktigt: vi returnerar en lista så vi kan göra varje "1× Margherita" osplitbar (nowrap)
   const cartSummaryParts = useMemo(() => {
     if (!cartLines.length) return [];
 
@@ -38,6 +44,8 @@ export default function CustomerMobile() {
     return Array.from(counts.entries()).map(([name, qty]) => `${qty}× ${name}`);
   }, [cartLines]);
 
+  const cartCount = cartLines.length;
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white pb-36">
       {/* TOPPDEL (INTE sticky) */}
@@ -45,9 +53,6 @@ export default function CustomerMobile() {
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm">
-                🍕
-              </div>
               <div className="min-w-0">
                 <div className="text-base font-extrabold text-slate-900 leading-tight truncate">
                   Pizzeria Il Forno
@@ -58,12 +63,45 @@ export default function CustomerMobile() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-amber-100 px-3 py-2 ring-1 ring-amber-200">
-              <div className="text-[10px] font-semibold text-amber-900">
-                Totalt
-              </div>
-              <div className="text-base font-extrabold text-amber-950">
-                {money(total)}
+            {/* Höger: Totalt + varukorgsikon */}
+            <div className="flex items-center gap-2">
+              {/* 🛒 Varukorgsikon */}
+              <button
+                onClick={scrollToCart}
+                className={cx(
+                  "relative flex h-11 w-11 items-center justify-center rounded-2xl",
+                  "bg-white ring-1 ring-slate-200 shadow-sm hover:bg-slate-50",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                )}
+                title="Gå till varukorgen"
+                aria-label="Gå till varukorgen"
+              >
+                <span className="text-lg">🛒</span>
+
+                {cartCount > 0 && (
+                  <span
+                    className={cx(
+                      "absolute -top-1 -right-1",
+                      "min-w-5 h-5 px-1",
+                      "rounded-full bg-amber-600 text-white",
+                      "text-[11px] font-extrabold",
+                      "flex items-center justify-center",
+                      "ring-2 ring-white"
+                    )}
+                  >
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Totalt-ruta */}
+              <div className="rounded-2xl bg-amber-100 px-3 py-2 ring-1 ring-amber-200">
+                <div className="text-[10px] font-semibold text-amber-900">
+                  Totalt
+                </div>
+                <div className="text-base font-extrabold text-amber-950">
+                  {money(total)}
+                </div>
               </div>
             </div>
           </div>
@@ -106,7 +144,6 @@ export default function CustomerMobile() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Sök i hela menyn…"
               className={cx(
-                // ✅ text-base (>=16px) för att undvika mobil-zoom vid fokus
                 "w-full rounded-2xl bg-white px-4 py-3 text-base text-slate-900",
                 "ring-1 ring-slate-300 placeholder:text-slate-400",
                 "focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -226,79 +263,118 @@ export default function CustomerMobile() {
         </Card>
 
         {/* VARUKORG */}
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-extrabold text-slate-900">Varukorg</h2>
-              <p className="text-xs text-slate-600">Kommentar per rad.</p>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={clearCart}
-              disabled={cartLines.length === 0}
-              className="px-3"
-              title="Töm varukorgen"
-            >
-              Töm
-            </Button>
-          </div>
-
-          {cartLines.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 p-5 text-center ring-1 ring-slate-200">
-              <div className="text-sm font-semibold text-slate-900">Tom varukorg</div>
-              <div className="mt-1 text-xs text-slate-600">
-                Lägg till något från menyn.
+        <div ref={cartRef}>
+          <Card className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900">
+                  Varukorg
+                </h2>
+                <p className="text-xs text-slate-600">Kommentar per rad.</p>
               </div>
+              <Button
+                variant="ghost"
+                onClick={clearCart}
+                disabled={cartLines.length === 0}
+                className="px-3"
+                title="Töm varukorgen"
+              >
+                Töm
+              </Button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {cartLines.map((line) => (
-                <div
-                  key={line.uid}
-                  className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-extrabold text-slate-900">
-                        {line.item.name}
+
+            {cartLines.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 p-5 text-center ring-1 ring-slate-200">
+                <div className="text-sm font-semibold text-slate-900">
+                  Tom varukorg
+                </div>
+                <div className="mt-1 text-xs text-slate-600">
+                  Lägg till något från menyn.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cartLines.map((line) => (
+                  <div
+                    key={line.uid}
+                    className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-slate-900">
+                          {line.item.name}
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-600">
+                          {money(line.item.price)}
+                        </div>
                       </div>
-                      <div className="mt-0.5 text-sm text-slate-600">
-                        {money(line.item.price)}
-                      </div>
+
+                      <Button
+                        variant="ghost"
+                        onClick={() => removeLine(line.uid)}
+                        className="px-3"
+                        title="Ta bort raden"
+                      >
+                        Ta bort
+                      </Button>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      onClick={() => removeLine(line.uid)}
-                      className="px-3"
-                      title="Ta bort raden"
-                    >
-                      Ta bort
-                    </Button>
+                    <div className="mt-3">
+                      <label className="text-xs font-bold text-slate-700">
+                        Kommentar
+                      </label>
+                      <input
+                        value={line.comment}
+                        onChange={(e) => setLineComment(line.uid, e.target.value)}
+                        placeholder="Ex: utan lök"
+                        className={cx(
+                          "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
+                          "ring-1 ring-slate-300 placeholder:text-slate-400",
+                          "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        )}
+                      />
+                    </div>
                   </div>
-
-                  <div className="mt-3">
-                    <label className="text-xs font-bold text-slate-700">
-                      Kommentar
-                    </label>
-                    <input
-                      value={line.comment}
-                      onChange={(e) => setLineComment(line.uid, e.target.value)}
-                      placeholder="Ex: utan lök, extra sås…"
-                      className={cx(
-                        // ✅ text-base (>=16px) för att undvika mobil-zoom vid fokus
-                        "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
-                        "ring-1 ring-slate-300 placeholder:text-slate-400",
-                        "focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      )}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
+
+      {/* ✅ Flytande varukorgsknapp (visas bara om man har varor) */}
+      {cartCount > 0 && (
+        <button
+          onClick={scrollToCart}
+          className={cx(
+            "fixed z-50",
+            // lämpligt ställe: ovanför sticky footern, längst ned till höger
+            "right-4 bottom-24",
+            "h-14 w-14 rounded-full",
+            "bg-amber-600 text-white shadow-lg shadow-amber-600/20",
+            "ring-1 ring-amber-700/40",
+            "flex items-center justify-center",
+            "active:scale-[0.98] transition",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ring-offset-white"
+          )}
+          title="Gå till varukorgen"
+          aria-label="Gå till varukorgen"
+        >
+          <span className="text-xl">🛒</span>
+          <span
+            className={cx(
+              "absolute -top-1 -right-1",
+              "min-w-6 h-6 px-1.5",
+              "rounded-full bg-white text-amber-700",
+              "text-[12px] font-extrabold",
+              "flex items-center justify-center",
+              "ring-2 ring-amber-600"
+            )}
+          >
+            {cartCount}
+          </span>
+        </button>
+      )}
 
       {/* Sticky footer */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur">
@@ -312,7 +388,7 @@ export default function CustomerMobile() {
               </div>
             </div>
 
-            {/* ✅ Alla varor, mindre text, radbryts – men aldrig mitt i "1× Margherita" */}
+            {/* Alla varor */}
             <div className="flex-1">
               {cartLines.length === 0 ? (
                 <div className="text-[11px] text-slate-500">Varukorgen är tom</div>
