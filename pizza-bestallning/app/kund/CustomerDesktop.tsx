@@ -36,9 +36,6 @@ export default function CustomerDesktop() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm">
-                  🍕
-                </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                   Pizzeria Il Forno • Onlinebeställning
                 </h1>

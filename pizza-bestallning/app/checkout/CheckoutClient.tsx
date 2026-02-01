@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import jsPDF from "jspdf";
 
 type PendingOrder = {
   createdAt?: string;
@@ -11,6 +12,17 @@ type PendingOrder = {
   // kunduppgifter
   customerName?: string;
   customerPhone?: string;
+};
+
+type ReceiptData = {
+  createdAt: string;
+  customerName: string;
+  customerPhone: string;
+  items: { name: string; price: number; comment?: string; qty: number }[];
+  subtotal: number;
+  serviceFee: number;
+  total: number;
+  receiptNo: string;
 };
 
 function cx(...classes: Array<string | false | undefined | null>) {
@@ -116,6 +128,19 @@ function normalizePhoneSE(input: string): string | null {
 const SERVICE_FEE_NAME = "Serviceavgift il forno";
 const SERVICE_FEE = 3;
 
+function makeReceiptNo(createdAtISO: string) {
+  const d = new Date(createdAtISO);
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  const y = d.getFullYear();
+  const mo = pad(d.getMonth() + 1);
+  const da = pad(d.getDate());
+  const h = pad(d.getHours());
+  const mi = pad(d.getMinutes());
+  const se = pad(d.getSeconds());
+  const ms = pad(d.getMilliseconds(), 3);
+  return `${y}${mo}${da}-${h}${mi}${se}-${ms}`;
+}
+
 function normalizeOrder(order: PendingOrder) {
   const items = (order.items ?? [])
     .map((it) => ({
@@ -126,24 +151,198 @@ function normalizeOrder(order: PendingOrder) {
     }))
     .filter((it) => it.name.length > 0 && it.price > 0 && it.qty > 0);
 
-  // Om serviceavgift redan ligger i items (t.ex. från äldre session), plocka bort den här
   const itemsWithoutFee = items.filter((it) => it.name !== SERVICE_FEE_NAME);
 
   const computedSubtotal = itemsWithoutFee.reduce(
     (sum, it) => sum + it.price * it.qty,
     0
   );
+
   const computedTotal = computedSubtotal + SERVICE_FEE;
 
+  const createdAt = order.createdAt ?? new Date().toISOString();
+
   return {
-    createdAt: order.createdAt ?? new Date().toISOString(),
+    createdAt,
     items: itemsWithoutFee,
     subtotal: computedSubtotal,
     serviceFee: SERVICE_FEE,
     total: computedTotal,
     customerName: String(order.customerName ?? "").trim(),
     customerPhone: String(order.customerPhone ?? "").trim(),
+    receiptNo: makeReceiptNo(createdAt),
   };
+}
+
+function formatMoney(n: number) {
+  return `${n} kr`;
+}
+
+function generateReceiptPdf(receipt: ReceiptData) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+  const left = 15;
+  let y = 18;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("KVITTO - IL FORNO", left, y);
+
+  y += 8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Kvittonummer: ${receipt.receiptNo}`, left, y);
+
+  y += 5;
+  doc.text(
+    `Datum: ${new Date(receipt.createdAt).toLocaleString("sv-SE")}`,
+    left,
+    y
+  );
+
+  y += 5;
+  if (receipt.customerName) doc.text(`Namn: ${receipt.customerName}`, left, y);
+  if (receipt.customerPhone) {
+    y += 5;
+    doc.text(`Telefon: ${receipt.customerPhone}`, left, y);
+  }
+
+  y += 8;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Specifikation", left, y);
+
+  y += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+
+  const pageBottom = 280;
+
+  const addLine = (textLeft: string, textRight: string) => {
+    if (y > pageBottom) {
+      doc.addPage();
+      y = 18;
+    }
+    doc.text(textLeft, left, y);
+    doc.text(textRight, 195, y, { align: "right" });
+    y += 5;
+  };
+
+  receipt.items.forEach((it) => {
+    addLine(`${it.qty}× ${it.name}`, formatMoney(it.price * it.qty));
+    const c = (it.comment ?? "").trim();
+    if (c) addLine(`  Kommentar: ${c}`, "");
+  });
+
+  addLine(SERVICE_FEE_NAME, formatMoney(receipt.serviceFee));
+
+  y += 3;
+  doc.setDrawColor(200);
+  doc.line(left, y, 195, y);
+  y += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Totalt", left, y);
+  doc.text(formatMoney(receipt.total), 195, y, { align: "right" });
+
+  y += 10;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text("Tack för din beställning!", left, y);
+
+  doc.save(`kvitto-il-forno-${receipt.receiptNo}.pdf`);
+}
+
+function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
+  return (
+    <div className="mt-4 rounded-2xl bg-white ring-1 ring-slate-200 overflow-hidden">
+      <div className="px-4 py-4 bg-slate-50 border-b border-slate-200">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-sm font-extrabold text-slate-900">Kvitto</div>
+            <div className="mt-1 text-xs text-slate-600">
+              Kvittonummer:{" "}
+              <span className="font-semibold">{receipt.receiptNo}</span>
+            </div>
+            <div className="mt-1 text-xs text-slate-600">
+              Datum:{" "}
+              <span className="font-semibold">
+                {new Date(receipt.createdAt).toLocaleString("sv-SE")}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-xs text-slate-600">Totalt</div>
+            <div className="text-lg font-extrabold text-slate-900">
+              {formatMoney(receipt.total)}
+            </div>
+          </div>
+        </div>
+
+        {(receipt.customerName || receipt.customerPhone) && (
+          <div className="mt-3 grid gap-1 text-xs text-slate-700">
+            {receipt.customerName && (
+              <div>
+                Namn:{" "}
+                <span className="font-semibold">{receipt.customerName}</span>
+              </div>
+            )}
+            {receipt.customerPhone && (
+              <div>
+                Telefon:{" "}
+                <span className="font-semibold">{receipt.customerPhone}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 py-4">
+        <div className="text-xs font-bold text-slate-700 mb-2">
+          Specifikation
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {receipt.items.map((it, idx) => (
+            <div key={idx} className="py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {it.qty}× {it.name}
+                  </div>
+                  {!!(it.comment ?? "").trim() && (
+                    <div className="mt-1 text-xs text-slate-600">
+                      Kommentar:{" "}
+                      <span className="font-medium">{it.comment}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm font-extrabold text-slate-900 whitespace-nowrap">
+                  {formatMoney(it.price * it.qty)}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div className="py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-slate-900">
+                {SERVICE_FEE_NAME}
+              </div>
+              <div className="text-sm font-extrabold text-slate-900 whitespace-nowrap">
+                {formatMoney(receipt.serviceFee)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ BORTTAGET: rutan med Delsumma/Total under kvittot */}
+      </div>
+    </div>
+  );
 }
 
 export default function CheckoutClient() {
@@ -158,11 +357,35 @@ export default function CheckoutClient() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+
   const success = params.get("success") === "true";
   const canceled = params.get("canceled") === "true";
 
   useEffect(() => {
     if (success) {
+      try {
+        const raw = sessionStorage.getItem("pendingOrder");
+        if (raw) {
+          const parsed = JSON.parse(raw) as PendingOrder;
+
+          const merged: PendingOrder = {
+            ...parsed,
+            customerName: parsed.customerName ?? customerName,
+            customerPhone: parsed.customerPhone ?? customerPhone,
+          };
+
+          const r = normalizeOrder(merged);
+          sessionStorage.setItem("lastReceipt", JSON.stringify(r));
+          setReceipt(r);
+        } else {
+          const last = sessionStorage.getItem("lastReceipt");
+          if (last) setReceipt(JSON.parse(last) as ReceiptData);
+        }
+      } catch {
+        // ignore
+      }
+
       sessionStorage.removeItem("pendingOrder");
       setOrder(null);
       setLoading(false);
@@ -186,9 +409,9 @@ export default function CheckoutClient() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [success]);
 
-  // Håll sessionStorage uppdaterad när kunden fyller i uppgifter
   useEffect(() => {
     if (!order) return;
     const next: PendingOrder = { ...order, customerName, customerPhone };
@@ -201,7 +424,6 @@ export default function CheckoutClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerName, customerPhone]);
 
-  // ✅ uppdatera kommentar per rad i checkout (och spara i sessionStorage)
   function setItemComment(index: number, comment: string) {
     setOrder((prev) => {
       if (!prev) return prev;
@@ -268,7 +490,6 @@ export default function CheckoutClient() {
 
     payload.customerPhone = normalizedPhone;
 
-    // Skicka med serviceavgiften som en rad i payload (så att backend/Stripe ser den)
     const payloadForApi: PendingOrder = {
       createdAt: payload.createdAt,
       customerName: payload.customerName,
@@ -327,6 +548,20 @@ export default function CheckoutClient() {
     router.push("/");
   }
 
+  function downloadReceiptPdf() {
+    try {
+      const raw = sessionStorage.getItem("lastReceipt");
+      if (!raw) {
+        alert("Hittade inget kvitto att ladda ner.");
+        return;
+      }
+      const r = JSON.parse(raw) as ReceiptData;
+      generateReceiptPdf(r);
+    } catch {
+      alert("Kunde inte skapa kvitto-PDF.");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
       <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
@@ -344,17 +579,38 @@ export default function CheckoutClient() {
         {success && (
           <Card className="p-5 ring-1 ring-emerald-200 bg-emerald-50/50">
             <div className="text-lg font-bold text-emerald-900">
-              Betalning lyckades ✅
+              Tack för din beställning ✅
             </div>
             <div className="mt-1 text-sm text-emerald-900/80">
-              Din order är mottagen. Du kan göra en ny beställning nedan.
+              Betalningen är genomförd. Här är ditt kvitto.
             </div>
+
+            {receipt ? (
+              <>
+                {/* ✅ Flyttad: knappen ligger över kvittot */}
+                <Button
+                  type="button"
+                  onClick={downloadReceiptPdf}
+                  variant="secondary"
+                  className="mt-4 w-full py-3 text-base"
+                >
+                  Ladda ner kvitto (PDF)
+                </Button>
+
+                <ReceiptPreview receipt={receipt} />
+              </>
+            ) : (
+              <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 text-sm text-slate-700">
+                Hittade inget kvitto att visa. (Om du laddar om sidan kan
+                webbläsaren ha rensat data.)
+              </div>
+            )}
 
             <Button
               type="button"
               onClick={backToShop}
               variant="primary"
-              className="mt-4 w-full py-3 text-base"
+              className="mt-3 w-full py-3 text-base"
             >
               Gör en ny beställning
             </Button>
@@ -402,7 +658,6 @@ export default function CheckoutClient() {
                 </div>
               ) : (
                 <>
-                  {/* Kunduppgifter */}
                   <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                     <div className="text-sm font-semibold text-slate-800">
                       Kontaktuppgifter (för SMS)
@@ -440,7 +695,6 @@ export default function CheckoutClient() {
                     </label>
                   </div>
 
-                  {/* Orderrader + kommentarsruta per rad */}
                   <ul className="mt-4 space-y-2">
                     {normalized.items.map((it, idx) => (
                       <li
@@ -480,12 +734,11 @@ export default function CheckoutClient() {
                     ))}
                   </ul>
 
-                  {/* Snygg totalsammanställning */}
                   <div className="mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200">
                     <div className="px-4 py-4 space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-semibold text-slate-700">
-                          Ordersumma
+                          Delsumma
                         </span>
                         <span className="font-semibold text-slate-900">
                           {subtotal} kr
@@ -510,6 +763,10 @@ export default function CheckoutClient() {
                         <span className="text-xl font-extrabold text-slate-900">
                           {total} kr
                         </span>
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        Serviceavgiften läggs till på varje beställning.
                       </div>
                     </div>
                   </div>
