@@ -687,27 +687,15 @@ export default function CheckoutClient() {
                 </div>
               ) : (
                 <>
+                  {/* ✅ Kontaktuppgifter: NAMN borttaget, bara telefon kvar */}
                   <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                     <div className="text-sm font-semibold text-slate-800">
-                      Kontaktuppgifter (för SMS)
+                      Mobilnummer Obligatoriskt för orderstatus via sms
                     </div>
 
                     <label className="grid gap-1">
                       <span className="text-xs font-semibold text-slate-700">
-                        Namn
-                      </span>
-                      <input
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Ex: Ali"
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-amber-500"
-                        autoComplete="name"
-                      />
-                    </label>
-
-                    <label className="grid gap-1">
-                      <span className="text-xs font-semibold text-slate-700">
-                        Mobilnummer
+                        *skriv här*
                       </span>
                       <input
                         value={customerPhone}
@@ -717,7 +705,7 @@ export default function CheckoutClient() {
                         inputMode="tel"
                         autoComplete="tel"
                       />
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-600">
                         Vi skickar SMS när din order tillagas och när den är
                         klar.
                       </span>
@@ -794,9 +782,7 @@ export default function CheckoutClient() {
                         </span>
                       </div>
 
-                      <div className="text-xs text-slate-500">
-                        Serviceavgiften läggs till på varje beställning.
-                      </div>
+
                     </div>
                   </div>
 
