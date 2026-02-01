@@ -89,6 +89,38 @@ function Button({
   );
 }
 
+/**
+ * ✅ Lägg din Swish PNG i:
+ *   /public/swish-logo.png
+ *
+ * Då laddas den som: /swish-logo.png
+ * Om den inte hittas → fallback till text "Swish" (så du slipper tom kapsel).
+ */
+function SwishBadge({ className }: { className?: string }) {
+  const [ok, setOk] = useState(true);
+
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center rounded-md bg-white/90 px-2 py-1",
+        className
+      )}
+    >
+      {ok ? (
+        <img
+          src="/swish-logo.png"
+          alt="Swish"
+          className="h-5 w-auto"
+          draggable={false}
+          onError={() => setOk(false)}
+        />
+      ) : (
+        <span className="text-xs font-extrabold text-slate-900">Swish</span>
+      )}
+    </span>
+  );
+}
+
 function safeNumber(v: any, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -338,8 +370,6 @@ function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
             </div>
           </div>
         </div>
-
-        {/* ✅ BORTTAGET: rutan med Delsumma/Total under kvittot */}
       </div>
     </div>
   );
@@ -587,7 +617,6 @@ export default function CheckoutClient() {
 
             {receipt ? (
               <>
-                {/* ✅ Flyttad: knappen ligger över kvittot */}
                 <Button
                   type="button"
                   onClick={downloadReceiptPdf}
@@ -777,15 +806,23 @@ export default function CheckoutClient() {
                     </div>
                   )}
 
+                  {/* ✅ KNAPP: Betala med + Swish PNG */}
                   <Button
                     type="button"
                     onClick={payWithStripe}
                     variant="primary"
                     className="mt-4 w-full py-3 text-base"
                     disabled={paying || !normalized}
-                    title={paying ? "Startar betalning…" : "Gå till betalning"}
+                    title={paying ? "Öppnar Swish…" : "Betala med Swish"}
                   >
-                    {paying ? "Startar betalning…" : "Bekräfta beställning"}
+                    {paying ? (
+                      "Öppnar Swish…"
+                    ) : (
+                      <>
+                        <span>Betala med</span>
+                        <SwishBadge />
+                      </>
+                    )}
                   </Button>
                 </>
               )}
