@@ -24,37 +24,44 @@ export default function CustomerMobile() {
     goToCheckout,
   } = useCustomerOrder();
 
-  // ✅ Scroll-target för varukorgen
   const cartRef = useRef<HTMLDivElement | null>(null);
 
   function scrollToCart() {
     cartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // ✅ Mini-översikt i footer – visar ALLA varor
   const cartSummaryParts = useMemo(() => {
     if (!cartLines.length) return [];
-
     const counts = new Map<string, number>();
     for (const line of cartLines) {
       const name = line.item?.name ?? "Okänd";
       counts.set(name, (counts.get(name) ?? 0) + 1);
     }
-
     return Array.from(counts.entries()).map(([name, qty]) => `${qty}× ${name}`);
   }, [cartLines]);
 
   const cartCount = cartLines.length;
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white pb-36">
+    <main
+      className={cx(
+        // 👇 typografi (kräver ingen extra kod om du redan har Tailwind v3)
+        "font-sans [font-feature-settings:'ss01','cv02','cv03','cv04','cv11']",
+        "min-h-screen bg-gradient-to-b from-amber-50 to-white pb-36"
+      )}
+      style={{
+        // 👇 Poppins först i stacken (fallback till systemfont om Poppins inte är laddad)
+        fontFamily:
+          "Poppins, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji','Segoe UI Emoji'",
+      }}
+    >
       {/* TOPPDEL (INTE sticky) */}
       <div className="border-b border-slate-200/70 bg-white/90">
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <div className="min-w-0">
-                <div className="text-base font-extrabold text-slate-900 leading-tight truncate">
+                <div className="text-base font-extrabold text-slate-900 leading-tight truncate tracking-[-0.01em]">
                   Pizzeria Il Forno
                 </div>
                 <div className="text-xs text-slate-600 truncate">
@@ -63,15 +70,13 @@ export default function CustomerMobile() {
               </div>
             </div>
 
-            {/* Höger: Totalt + varukorgsikon */}
+            {/* Höger: Totalt */}
             <div className="flex items-center gap-2">
-
-              {/* Totalt-ruta */}
               <div className="rounded-2xl bg-amber-100 px-3 py-2 ring-1 ring-amber-200">
                 <div className="text-[10px] font-semibold text-amber-900">
                   Totalt
                 </div>
-                <div className="text-base font-extrabold text-amber-950">
+                <div className="text-base font-extrabold text-amber-950 tabular-nums tracking-[-0.01em]">
                   {money(total)}
                 </div>
               </div>
@@ -91,13 +96,14 @@ export default function CustomerMobile() {
                   }}
                   className={cx(
                     "shrink-0 rounded-full px-4 py-2 text-sm font-bold ring-1 transition",
+                    "tracking-[-0.01em]",
                     active
                       ? "bg-slate-900 text-white ring-slate-900"
                       : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
                   )}
                 >
                   {cat}
-                  <span className="ml-2 text-xs opacity-80">
+                  <span className="ml-2 text-xs opacity-80 tabular-nums">
                     {categoryCounts[cat] ?? 0}
                   </span>
                 </button>
@@ -118,7 +124,8 @@ export default function CustomerMobile() {
               className={cx(
                 "w-full rounded-2xl bg-white px-4 py-3 text-base text-slate-900",
                 "ring-1 ring-slate-300 placeholder:text-slate-400",
-                "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                "focus:outline-none focus:ring-2 focus:ring-amber-500",
+                "tracking-[-0.01em]"
               )}
             />
             <Button
@@ -139,14 +146,14 @@ export default function CustomerMobile() {
         <Card className="p-4">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 truncate">
+              <h2 className="text-base font-extrabold text-slate-900 truncate tracking-[-0.01em]">
                 {isSearching ? "Sökresultat" : activeCategory}
               </h2>
               <p className="mt-1 text-xs text-slate-600">
                 {isSearching ? "Träffar i hela menyn." : "Tryck + / − för antal."}
               </p>
             </div>
-            <div className="text-xs font-semibold text-slate-600">
+            <div className="text-xs font-semibold text-slate-600 tabular-nums">
               {filteredMenu.length} st
             </div>
           </div>
@@ -175,11 +182,11 @@ export default function CustomerMobile() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           {typeof item.no === "number" ? (
-                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-extrabold text-slate-700 ring-1 ring-slate-200">
+                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-extrabold text-slate-700 ring-1 ring-slate-200 tabular-nums">
                               {item.no}
                             </span>
                           ) : null}
-                          <div className="font-extrabold text-slate-900 truncate">
+                          <div className="font-extrabold text-slate-900 truncate tracking-[-0.01em]">
                             {item.name}
                           </div>
                         </div>
@@ -195,7 +202,7 @@ export default function CustomerMobile() {
 
                       {/* Pris + kontroller */}
                       <div className="shrink-0 text-right">
-                        <div className="text-sm font-extrabold text-slate-900">
+                        <div className="text-sm font-extrabold text-slate-900 tabular-nums tracking-[-0.01em]">
                           {money(item.price)}
                         </div>
 
@@ -206,6 +213,7 @@ export default function CustomerMobile() {
                             className={cx(
                               "h-10 w-10 rounded-xl bg-white ring-1 ring-slate-300 hover:bg-slate-50",
                               "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
+                              "active:scale-[0.98] transition",
                               count === 0 && "opacity-50 cursor-not-allowed"
                             )}
                             aria-label={`Ta bort en ${item.name}`}
@@ -213,13 +221,13 @@ export default function CustomerMobile() {
                             −
                           </button>
 
-                          <div className="w-6 text-center font-extrabold text-slate-900">
+                          <div className="w-6 text-center font-extrabold text-slate-900 tabular-nums">
                             {count}
                           </div>
 
                           <button
                             onClick={() => addToCart(item.id)}
-                            className="h-10 w-10 rounded-xl bg-amber-600 text-white hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                            className="h-10 w-10 rounded-xl bg-amber-600 text-white hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 active:scale-[0.98] transition"
                             aria-label={`Lägg till en ${item.name}`}
                           >
                             +
@@ -239,7 +247,7 @@ export default function CustomerMobile() {
           <Card className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-extrabold text-slate-900">
+                <h2 className="text-base font-extrabold text-slate-900 tracking-[-0.01em]">
                   Varukorg
                 </h2>
                 <p className="text-xs text-slate-600">Kommentar per rad.</p>
@@ -273,10 +281,10 @@ export default function CustomerMobile() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-extrabold text-slate-900">
+                        <div className="font-extrabold text-slate-900 tracking-[-0.01em]">
                           {line.item.name}
                         </div>
-                        <div className="mt-0.5 text-sm text-slate-600">
+                        <div className="mt-0.5 text-sm text-slate-600 tabular-nums">
                           {money(line.item.price)}
                         </div>
                       </div>
@@ -302,7 +310,8 @@ export default function CustomerMobile() {
                         className={cx(
                           "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
                           "ring-1 ring-slate-300 placeholder:text-slate-400",
-                          "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          "focus:outline-none focus:ring-2 focus:ring-amber-500",
+                          "tracking-[-0.01em]"
                         )}
                       />
                     </div>
@@ -314,13 +323,12 @@ export default function CustomerMobile() {
         </div>
       </div>
 
-      {/* ✅ Flytande varukorgsknapp (visas bara om man har varor) */}
+      {/* Flytande varukorgsknapp */}
       {cartCount > 0 && (
         <button
           onClick={scrollToCart}
           className={cx(
             "fixed z-50",
-            // lämpligt ställe: ovanför sticky footern, längst ned till höger
             "right-4 bottom-24",
             "h-14 w-14 rounded-full",
             "bg-amber-600 text-white shadow-lg shadow-amber-600/20",
@@ -338,7 +346,7 @@ export default function CustomerMobile() {
               "absolute -top-1 -right-1",
               "min-w-6 h-6 px-1.5",
               "rounded-full bg-white text-amber-700",
-              "text-[12px] font-extrabold",
+              "text-[12px] font-extrabold tabular-nums",
               "flex items-center justify-center",
               "ring-2 ring-amber-600"
             )}
@@ -355,7 +363,7 @@ export default function CustomerMobile() {
             {/* Totalt */}
             <div className="shrink-0">
               <div className="text-xs font-semibold text-slate-600">Totalt</div>
-              <div className="text-lg font-extrabold text-slate-900">
+              <div className="text-lg font-extrabold text-slate-900 tabular-nums tracking-[-0.01em]">
                 {money(total)}
               </div>
             </div>
