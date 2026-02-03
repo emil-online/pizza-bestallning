@@ -49,7 +49,6 @@ export default function CustomerMobile() {
         "min-h-screen bg-gradient-to-b from-amber-50 to-white pb-36"
       )}
       style={{
-        // 👇 Rubik först i stacken (fallback till systemfont om Rubik inte är laddad)
         fontFamily:
           "Rubik, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji','Segoe UI Emoji'",
       }}
@@ -61,10 +60,31 @@ export default function CustomerMobile() {
             <div className="flex items-center gap-2 min-w-0">
               <div className="min-w-0">
                 <div className="text-base font-extrabold text-slate-900 leading-tight truncate tracking-[-0.01em]">
-                  Pizzeria Il Forno
+                  Alsike Pizzeria Il Forno
                 </div>
-                <div className="text-xs text-slate-600 truncate">
-                  Onlinebeställning
+
+                {/* ✅ NYTT: trust-rad med Swish + inga avgifter */}
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
+                  <span className="inline-flex items-center gap-1.5">
+                    <img
+                      src="/swish-logo.png"
+                      alt="Swish"
+                      className="h-4 w-4"
+                      loading="lazy"
+                    />
+                    <span className="font-semibold text-slate-700">
+                      Betala säkert med Swish
+                    </span>
+                  </span>
+
+                  <span className="text-slate-300">•</span>
+
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-emerald-600">✓</span>
+                    <span className="font-semibold text-slate-700">
+                      Inga extra avgifter
+                    </span>
+                  </span>
                 </div>
               </div>
             </div>
@@ -304,7 +324,9 @@ export default function CustomerMobile() {
                       </label>
                       <input
                         value={line.comment}
-                        onChange={(e) => setLineComment(line.uid, e.target.value)}
+                        onChange={(e) =>
+                          setLineComment(line.uid, e.target.value)
+                        }
                         placeholder="Ex: utan lök"
                         className={cx(
                           "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
@@ -370,7 +392,9 @@ export default function CustomerMobile() {
             {/* Alla varor */}
             <div className="flex-1">
               {cartLines.length === 0 ? (
-                <div className="text-[11px] text-slate-500">Varukorgen är tom</div>
+                <div className="text-[11px] text-slate-500">
+                  Varukorgen är tom
+                </div>
               ) : (
                 <div className="flex flex-wrap items-start gap-x-2 gap-y-1 text-[11px] leading-snug text-slate-700">
                   {cartSummaryParts.map((part, i) => (
