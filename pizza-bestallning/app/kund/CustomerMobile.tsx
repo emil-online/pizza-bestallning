@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef } from "react";
+import Link from "next/link";
 import { CATEGORY_ORDER, money, useCustomerOrder } from "./useCustomerOrder";
 import { Button, Card, cx, tagBadges } from "./ui";
 
@@ -63,7 +64,7 @@ export default function CustomerMobile() {
                   Alsike Pizzeria Il Forno
                 </div>
 
-                {/* ✅ NYTT: trust-rad med Swish + inga avgifter */}
+                {/* ✅ trust-rad med Swish + inga avgifter */}
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
                   <span className="inline-flex items-center gap-1.5">
                     <img
@@ -257,7 +258,9 @@ export default function CustomerMobile() {
                 <h2 className="text-base font-extrabold text-slate-900 tracking-[-0.01em]">
                   Varukorg
                 </h2>
-                <p className="text-xs text-slate-600">Kommentera för specifik produkt</p>
+                <p className="text-xs text-slate-600">
+                  Kommentera för specifik produkt
+                </p>
               </div>
               <Button
                 variant="ghost"
@@ -405,6 +408,16 @@ export default function CustomerMobile() {
             >
               Beställ
             </Button>
+          </div>
+
+          {/* ✅ NYTT: policy-länk */}
+          <div className="mt-2 flex items-center justify-center">
+            <Link
+              href="/policy"
+              className="text-[11px] font-semibold text-slate-500 underline underline-offset-4 hover:text-slate-700"
+            >
+              Integritetspolicy
+            </Link>
           </div>
         </div>
       </div>

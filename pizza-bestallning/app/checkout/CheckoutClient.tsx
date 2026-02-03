@@ -564,7 +564,7 @@ export default function CheckoutClient() {
         <div className="mx-auto max-w-3xl px-6 py-6">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Checkout</h1>
           <p className="mt-2 text-slate-600">
-            Bekräfta din beställning och gå vidare till betalning.
+            Se över din beställning och gå vidare till betalning.
           </p>
         </div>
       </div>
@@ -697,17 +697,9 @@ export default function CheckoutClient() {
                       </li>
                     ))}
                   </ul>
-
-                  {/* ✅ Totalt utan serviceavgift */}
                   <div className="mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200">
                     <div className="px-4 py-4 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-700">Delsumma</span>
-                        <span className="font-semibold text-slate-900">{subtotal} kr</span>
-                      </div>
-
                       <div className="h-px bg-slate-200" />
-
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-slate-700">Totalt</span>
                         <span className="text-xl font-extrabold text-slate-900">{total} kr</span>
