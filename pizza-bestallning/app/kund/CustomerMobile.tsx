@@ -88,18 +88,6 @@ export default function CustomerMobile() {
                 </div>
               </div>
             </div>
-
-            {/* Höger: Totalt */}
-            <div className="flex items-center gap-2">
-              <div className="rounded-2xl bg-amber-100 px-3 py-2 ring-1 ring-amber-200">
-                <div className="text-[10px] font-semibold text-amber-900">
-                  Totalt
-                </div>
-                <div className="text-base font-extrabold text-amber-950 tabular-nums tracking-[-0.01em]">
-                  {money(total)}
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Kategorier (INTE sticky) */}
