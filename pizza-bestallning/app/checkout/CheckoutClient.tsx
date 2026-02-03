@@ -9,9 +9,8 @@ type PendingOrder = {
   items: { name: string; price: number; comment?: string; qty: number }[];
   total?: number;
 
-  // kunduppgifter
-  customerName?: string;
-  customerPhone?: string;
+  customerName?: string; // valfritt i UI
+  customerPhone?: string; // obligatoriskt
 };
 
 type ReceiptData = {
@@ -20,7 +19,6 @@ type ReceiptData = {
   customerPhone: string;
   items: { name: string; price: number; comment?: string; qty: number }[];
   subtotal: number;
-  serviceFee: number;
   total: number;
   receiptNo: string;
 };
@@ -89,13 +87,7 @@ function Button({
   );
 }
 
-/**
- * ✅ Lägg din Swish PNG i:
- *   /public/swish-logo.png
- *
- * Då laddas den som: /swish-logo.png
- * Om den inte hittas → fallback till text "Swish" (så du slipper tom kapsel).
- */
+/** Swish PNG i /public/swish-logo.png */
 function SwishBadge({ className }: { className?: string }) {
   const [ok, setOk] = useState(true);
 
@@ -126,9 +118,7 @@ function safeNumber(v: any, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/**
- * Enkel normalisering till E.164 för svenska nummer.
- */
+/** Normalisering till E.164 för svenska nummer */
 function normalizePhoneSE(input: string): string | null {
   const raw = (input || "").trim().replace(/\s+/g, "").replace(/-/g, "");
   if (!raw) return null;
@@ -157,9 +147,6 @@ function normalizePhoneSE(input: string): string | null {
   return null;
 }
 
-const SERVICE_FEE_NAME = "Serviceavgift il forno";
-const SERVICE_FEE = 3;
-
 function makeReceiptNo(createdAtISO: string) {
   const d = new Date(createdAtISO);
   const pad = (n: number, w = 2) => String(n).padStart(w, "0");
@@ -183,24 +170,22 @@ function normalizeOrder(order: PendingOrder) {
     }))
     .filter((it) => it.name.length > 0 && it.price > 0 && it.qty > 0);
 
-  const itemsWithoutFee = items.filter((it) => it.name !== SERVICE_FEE_NAME);
-
-  const computedSubtotal = itemsWithoutFee.reduce(
+  const computedSubtotal = items.reduce(
     (sum, it) => sum + it.price * it.qty,
     0
   );
 
-  const computedTotal = computedSubtotal + SERVICE_FEE;
+  // ✅ INGEN serviceavgift
+  const computedTotal = computedSubtotal;
 
   const createdAt = order.createdAt ?? new Date().toISOString();
 
   return {
     createdAt,
-    items: itemsWithoutFee,
+    items,
     subtotal: computedSubtotal,
-    serviceFee: SERVICE_FEE,
     total: computedTotal,
-    customerName: String(order.customerName ?? "").trim(),
+    customerName: String(order.customerName ?? "").trim(), // kan vara tom
     customerPhone: String(order.customerPhone ?? "").trim(),
     receiptNo: makeReceiptNo(createdAt),
   };
@@ -265,8 +250,6 @@ function generateReceiptPdf(receipt: ReceiptData) {
     const c = (it.comment ?? "").trim();
     if (c) addLine(`  Kommentar: ${c}`, "");
   });
-
-  addLine(SERVICE_FEE_NAME, formatMoney(receipt.serviceFee));
 
   y += 3;
   doc.setDrawColor(200);
@@ -358,17 +341,6 @@ function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
               </div>
             </div>
           ))}
-
-          <div className="py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold text-slate-900">
-                {SERVICE_FEE_NAME}
-              </div>
-              <div className="text-sm font-extrabold text-slate-900 whitespace-nowrap">
-                {formatMoney(receipt.serviceFee)}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -406,8 +378,15 @@ export default function CheckoutClient() {
           };
 
           const r = normalizeOrder(merged);
-          sessionStorage.setItem("lastReceipt", JSON.stringify(r));
-          setReceipt(r);
+
+          // ✅ backend-krav: om namn saknas, visa "Kund" på kvitto också
+          const receiptSafe: ReceiptData = {
+            ...r,
+            customerName: r.customerName || "Kund",
+          };
+
+          sessionStorage.setItem("lastReceipt", JSON.stringify(receiptSafe));
+          setReceipt(receiptSafe);
         } else {
           const last = sessionStorage.getItem("lastReceipt");
           if (last) setReceipt(JSON.parse(last) as ReceiptData);
@@ -470,13 +449,9 @@ export default function CheckoutClient() {
     });
   }
 
-  const normalized = useMemo(
-    () => (order ? normalizeOrder(order) : null),
-    [order]
-  );
+  const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
 
   const subtotal = normalized?.subtotal ?? 0;
-  const serviceFee = normalized?.serviceFee ?? SERVICE_FEE;
   const total = normalized?.total ?? 0;
 
   async function payWithStripe() {
@@ -488,9 +463,7 @@ export default function CheckoutClient() {
     }
 
     if (!order) {
-      setError(
-        "Ingen order hittades. Gå tillbaka och lägg något i varukorgen först."
-      );
+      setError("Ingen order hittades. Gå tillbaka och lägg något i varukorgen först.");
       return;
     }
 
@@ -505,29 +478,22 @@ export default function CheckoutClient() {
       return;
     }
 
-    if (!payload.customerName || payload.customerName.length < 2) {
-      setError("Fyll i ditt namn (minst 2 tecken).");
-      return;
-    }
-
+    // ✅ ENDA kravet i UI: giltigt telefonnummer
     const normalizedPhone = normalizePhoneSE(payload.customerPhone);
     if (!normalizedPhone) {
-      setError(
-        "Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567."
-      );
+      setError("Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567.");
       return;
     }
-
     payload.customerPhone = normalizedPhone;
+
+    // ✅ Viktigt: backend kräver ofta namn → skicka "Kund" om tomt
+    const safeName = payload.customerName?.trim() || "Kund";
 
     const payloadForApi: PendingOrder = {
       createdAt: payload.createdAt,
-      customerName: payload.customerName,
+      customerName: safeName,
       customerPhone: payload.customerPhone,
-      items: [
-        ...payload.items,
-        { name: SERVICE_FEE_NAME, price: SERVICE_FEE, qty: 1 },
-      ],
+      items: payload.items,
       total: payload.total,
     };
 
@@ -596,9 +562,7 @@ export default function CheckoutClient() {
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
       <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="mx-auto max-w-3xl px-6 py-6">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            Checkout
-          </h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Checkout</h1>
           <p className="mt-2 text-slate-600">
             Bekräfta din beställning och gå vidare till betalning.
           </p>
@@ -630,8 +594,7 @@ export default function CheckoutClient() {
               </>
             ) : (
               <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 text-sm text-slate-700">
-                Hittade inget kvitto att visa. (Om du laddar om sidan kan
-                webbläsaren ha rensat data.)
+                Hittade inget kvitto att visa. (Om du laddar om sidan kan webbläsaren ha rensat data.)
               </div>
             )}
 
@@ -648,9 +611,7 @@ export default function CheckoutClient() {
 
         {canceled && (
           <Card className="p-5 ring-1 ring-amber-200 bg-amber-50/50">
-            <div className="text-lg font-bold text-amber-900">
-              Betalning avbruten
-            </div>
+            <div className="text-lg font-bold text-amber-900">Betalning avbruten</div>
             <div className="mt-1 text-sm text-amber-900/80">
               Du kan försöka igen när du vill.
             </div>
@@ -662,12 +623,8 @@ export default function CheckoutClient() {
             <Card className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-xl font-bold text-slate-900">
-                    Din order
-                  </div>
-                  <div className="mt-1 text-sm text-slate-600">
-                    Kontrollera innan du betalar.
-                  </div>
+                  <div className="text-xl font-bold text-slate-900">Din order</div>
+                  <div className="mt-1 text-sm text-slate-600">Kontrollera innan du betalar.</div>
                 </div>
                 <Button onClick={backToShop} variant="secondary">
                   Tillbaka
@@ -678,25 +635,21 @@ export default function CheckoutClient() {
                 <div className="mt-4 text-slate-600">Laddar…</div>
               ) : !normalized ? (
                 <div className="mt-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
-                  <div className="font-semibold text-slate-900">
-                    Ingen order hittades
-                  </div>
+                  <div className="font-semibold text-slate-900">Ingen order hittades</div>
                   <div className="mt-1 text-sm text-slate-600">
                     Gå tillbaka och lägg något i varukorgen.
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* ✅ Kontaktuppgifter: NAMN borttaget, bara telefon kvar */}
+                  {/* ✅ Endast telefon krävs */}
                   <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                     <div className="text-sm font-semibold text-slate-800">
                       Mobilnummer Obligatoriskt för orderstatus via sms
                     </div>
 
                     <label className="grid gap-1">
-                      <span className="text-xs font-semibold text-slate-700">
-                        *skriv här*
-                      </span>
+                      <span className="text-xs font-semibold text-slate-700">*skriv här*</span>
                       <input
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
@@ -706,18 +659,14 @@ export default function CheckoutClient() {
                         autoComplete="tel"
                       />
                       <span className="text-xs text-slate-600">
-                        Vi skickar SMS när din order tillagas och när den är
-                        klar.
+                        Vi skickar SMS när din order tillagas och när den är klar.
                       </span>
                     </label>
                   </div>
 
                   <ul className="mt-4 space-y-2">
                     {normalized.items.map((it, idx) => (
-                      <li
-                        key={idx}
-                        className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
-                      >
+                      <li key={idx} className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">
                             <div className="font-semibold text-slate-900">
@@ -730,9 +679,7 @@ export default function CheckoutClient() {
                               </label>
                               <input
                                 value={it.comment ?? ""}
-                                onChange={(e) =>
-                                  setItemComment(idx, e.target.value)
-                                }
+                                onChange={(e) => setItemComment(idx, e.target.value)}
                                 placeholder="Ex: utan lök"
                                 className={cx(
                                   "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
@@ -751,38 +698,20 @@ export default function CheckoutClient() {
                     ))}
                   </ul>
 
+                  {/* ✅ Totalt utan serviceavgift */}
                   <div className="mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200">
                     <div className="px-4 py-4 space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-700">
-                          Delsumma
-                        </span>
-                        <span className="font-semibold text-slate-900">
-                          {subtotal} kr
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-700">
-                          Serviceavgift il forno
-                        </span>
-                        <span className="font-semibold text-slate-900">
-                          {serviceFee} kr
-                        </span>
+                        <span className="font-semibold text-slate-700">Delsumma</span>
+                        <span className="font-semibold text-slate-900">{subtotal} kr</span>
                       </div>
 
                       <div className="h-px bg-slate-200" />
 
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-slate-700">
-                          Totalt
-                        </span>
-                        <span className="text-xl font-extrabold text-slate-900">
-                          {total} kr
-                        </span>
+                        <span className="text-sm font-semibold text-slate-700">Totalt</span>
+                        <span className="text-xl font-extrabold text-slate-900">{total} kr</span>
                       </div>
-
-
                     </div>
                   </div>
 
@@ -792,7 +721,6 @@ export default function CheckoutClient() {
                     </div>
                   )}
 
-                  {/* ✅ KNAPP: Betala med + Swish PNG */}
                   <Button
                     type="button"
                     onClick={payWithStripe}

@@ -257,7 +257,7 @@ export default function CustomerMobile() {
                 <h2 className="text-base font-extrabold text-slate-900 tracking-[-0.01em]">
                   Varukorg
                 </h2>
-                <p className="text-xs text-slate-600">Kommentar per rad.</p>
+                <p className="text-xs text-slate-600">Kommentera för specifik produkt</p>
               </div>
               <Button
                 variant="ghost"
