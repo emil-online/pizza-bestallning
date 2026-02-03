@@ -45,14 +45,13 @@ export default function CustomerMobile() {
   return (
     <main
       className={cx(
-        // 👇 typografi (kräver ingen extra kod om du redan har Tailwind v3)
         "font-sans [font-feature-settings:'ss01','cv02','cv03','cv04','cv11']",
         "min-h-screen bg-gradient-to-b from-amber-50 to-white pb-36"
       )}
       style={{
-        // 👇 Poppins först i stacken (fallback till systemfont om Poppins inte är laddad)
+        // 👇 Rubik först i stacken (fallback till systemfont om Rubik inte är laddad)
         fontFamily:
-          "Poppins, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji','Segoe UI Emoji'",
+          "Rubik, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji','Segoe UI Emoji'",
       }}
     >
       {/* TOPPDEL (INTE sticky) */}

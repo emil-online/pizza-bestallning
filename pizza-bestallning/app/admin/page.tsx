@@ -15,6 +15,13 @@ type DbOrder = {
   paid_at: string | null;
 };
 
+// 👇 NYTT: meny-items för "slut"-funktionen
+type MenuItem = {
+  id: string;
+  name: string;
+  is_available: boolean;
+};
+
 const NEW_ORDER_SOUND =
   "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
 
@@ -317,10 +324,15 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   const lastSeenIdsRef = useRef<Set<string>>(new Set());
   const initialLoadedRef = useRef(false);
 
-  const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
   const glowTimersRef = useRef<Record<string, number>>({});
 
   const [colCount, setColCount] = useState(1);
+
+  // 👇 NYTT: state för meny/tillgänglighet
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [menuBusy, setMenuBusy] = useState(false);
+  const [menuMsg, setMenuMsg] = useState<string>("");
 
   useEffect(() => {
     const compute = () => {
@@ -345,24 +357,49 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     return cols;
   }, [visible, colCount]);
 
-  function addGlow(id: string) {
-    setGlowIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
+  async function fetchMenuItems() {
+    // 🔧 Ändra tabellnamn här om din meny heter något annat
+    const { data, error } = await supabase
+      .from("menu_items")
+      .select("id,name,is_available")
+      .order("name", { ascending: true });
 
-    const existing = glowTimersRef.current[id];
-    if (existing) window.clearTimeout(existing);
+    if (error) {
+      console.log("Kunde inte hämta meny:", error.message);
+      return;
+    }
 
-    glowTimersRef.current[id] = window.setTimeout(() => {
-      setGlowIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      delete glowTimersRef.current[id];
-    }, 20000);
+    const list = (data ?? []) as MenuItem[];
+    setMenuItems(list);
+
+    // Sätt default-val om inget valt
+    setSelectedItemId((prev) => prev || (list[0]?.id ?? ""));
+  }
+
+  async function setAvailability(itemId: string, isAvailable: boolean) {
+    if (!itemId) return;
+    setMenuBusy(true);
+    setMenuMsg("");
+
+    // 🔧 Ändra tabellnamn + kolumn här om din DB skiljer sig
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ is_available: isAvailable })
+      .eq("id", itemId);
+
+    if (error) {
+      alert("Kunde inte uppdatera produkt: " + error.message);
+      setMenuBusy(false);
+      return;
+    }
+
+    // Uppdatera listan lokalt
+    setMenuItems((prev) =>
+      prev.map((x) => (x.id === itemId ? { ...x, is_available: isAvailable } : x))
+    );
+
+    setMenuMsg(isAvailable ? "✅ Produkten är aktiv igen" : "⛔ Produkten är markerad som slut");
+    setMenuBusy(false);
   }
 
   async function fetchOrders() {
@@ -403,7 +440,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       if (newOnes.length > 0) {
         const audio = new Audio(NEW_ORDER_SOUND);
         audio.play().catch(() => {});
-        newOnes.forEach((o) => addGlow(o.id));
       }
     }
 
@@ -486,6 +522,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     fetchOrders();
+    fetchMenuItems();
 
     const ch = supabase
       .channel("orders-admin")
@@ -508,6 +545,11 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const selectedItem = useMemo(
+    () => menuItems.find((x) => x.id === selectedItemId),
+    [menuItems, selectedItemId]
+  );
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
@@ -535,6 +577,72 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 Logga ut
               </Button>
             </div>
+          </div>
+
+          {/* ✅ NYTT: Rullgardin för "slut"-produkter */}
+          <div className="mt-3 grid gap-2 md:grid-cols-12 md:items-center">
+            <div className="md:col-span-6">
+              <div className="text-xs font-semibold text-slate-600">
+                Markera produkt som slut (syns på kundsidan)
+              </div>
+
+              <select
+                value={selectedItemId}
+                onChange={(e) => {
+                  setSelectedItemId(e.target.value);
+                  setMenuMsg("");
+                }}
+                className={cx(
+                  "mt-1 w-full rounded-xl bg-white px-3 py-2.5 text-sm font-semibold text-slate-900",
+                  "ring-1 ring-slate-300 hover:bg-slate-50",
+                  "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                )}
+              >
+                {menuItems.length === 0 ? (
+                  <option value="">(Ingen meny hittades)</option>
+                ) : (
+                  menuItems.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.name} {it.is_available ? "" : "(SLUT)"}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div className="md:col-span-6 flex flex-wrap gap-2 md:justify-end md:pt-5">
+              <Button
+                variant="danger"
+                disabled={
+                  menuBusy ||
+                  !selectedItemId ||
+                  !selectedItem?.is_available
+                }
+                onClick={() => setAvailability(selectedItemId, false)}
+                title="Gör produkten otillgänglig på kundsidan"
+              >
+                Markera som slut
+              </Button>
+
+              <Button
+                variant="secondary"
+                disabled={
+                  menuBusy ||
+                  !selectedItemId ||
+                  !!selectedItem?.is_available
+                }
+                onClick={() => setAvailability(selectedItemId, true)}
+                title="Gör produkten tillgänglig igen"
+              >
+                Aktivera igen
+              </Button>
+            </div>
+
+            {menuMsg && (
+              <div className="md:col-span-12 text-sm font-semibold text-slate-700">
+                {menuMsg}
+              </div>
+            )}
           </div>
 
           {!loading && (
@@ -576,13 +684,14 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     className={cx(
                       "p-4",
                       isNewStatus && "ring-2 ring-amber-300 bg-amber-50/50",
-                      // ✅ Tvinga grön bakgrund även om Card har bg-white
                       isDone && "!bg-emerald-100/60 !ring-emerald-200 ring-2"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="text-sm text-slate-600">
-                        <span className="font-semibold text-slate-800">Order</span>{" "}
+                        <span className="font-semibold text-slate-800">
+                          Order
+                        </span>{" "}
                         <span className="text-slate-400">•</span> {time}
                       </div>
 
@@ -592,7 +701,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                           variant="secondary"
                           className={cx(
                             "px-3 py-1.5",
-                            // ✅ Tvinga bort vit bg på knappen
                             isDone &&
                               "!bg-emerald-50 !ring-emerald-200 hover:!bg-emerald-50"
                           )}
@@ -604,9 +712,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <div className="text-base font-bold text-slate-900">Status</div>
+                      <div className="text-base font-bold text-slate-900">
+                        Status
+                      </div>
                       <StatusBadge status={o.status} />
-                      {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
+                      {hasAnyComment && (
+                        <Badge tone="comment">💬 Kommentar</Badge>
+                      )}
                       {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                     </div>
 
@@ -619,14 +731,15 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     </div>
 
                     <div className="mt-4 border-t border-slate-200 pt-3">
-                      <div className="font-semibold text-slate-900">Innehåll</div>
+                      <div className="font-semibold text-slate-900">
+                        Innehåll
+                      </div>
                       <ul className="mt-3 space-y-2">
                         {items.map((it, idx) => (
                           <li
                             key={idx}
                             className={cx(
                               "rounded-xl p-3 ring-1 ring-slate-200",
-                              // ✅ Tvinga bort vit bg på item-rader
                               isDone ? "!bg-emerald-50" : "bg-white"
                             )}
                           >
@@ -650,7 +763,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         <div
                           className={cx(
                             "mt-3 flex items-center justify-between rounded-xl px-4 py-3 ring-1 ring-slate-200",
-                            // ✅ Tvinga bort grå/vit bg på total
                             isDone ? "!bg-emerald-50" : "bg-slate-50"
                           )}
                         >
@@ -668,8 +780,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <EtaSelect
                           value={eta || ""}
-                          onSelect={(label) => setStatus(o.id, `Tillagas • ${label}`)}
-                          // ✅ Tvinga bort vit bg på select
+                          onSelect={(label) =>
+                            setStatus(o.id, `Tillagas • ${label}`)
+                          }
                           className={cx(
                             isDone &&
                               "!bg-emerald-50 !ring-emerald-200 hover:!bg-emerald-50"

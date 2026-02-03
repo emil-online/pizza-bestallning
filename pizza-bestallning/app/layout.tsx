@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Rubik, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const rubik = Rubik({
+  variable: "--font-rubik",
   subsets: ["latin"],
+  // Välj weights du använder – dessa täcker det mesta (regular, medium, bold, extra bold)
+  weight: ["400", "500", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -30,7 +32,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${rubik.variable} ${geistMono.variable} antialiased`}
+        style={{
+          // Gör Rubik till default font överallt
+          fontFamily:
+            "Rubik, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji','Segoe UI Emoji'",
+        }}
+      >
         {children}
       </body>
     </html>
