@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   isOrderOpenNowStockholm,
@@ -657,6 +657,105 @@ export const CATEGORY_ORDER: MenuCategory[] = [
   "Sallader",
 ];
 
+/** ===== Lunchpaket-regler =====
+ * Bilden säger:
+ * - Vardagar 10:30–14:00
+ * - Valfri pizza 1–66 (ej trekronor & dubbelinbakade pizzor)
+ * - All kebabsortiment ingår
+ * - Hamburgare & grill, sallader nr 1–8
+ * - + burkläsk 33cl ingår
+ *
+ * I din MENU finns inte hamburgare/grill/sallader 1–8 just nu,
+ * men detta är gjort så det fungerar om du lägger in dem senare.
+ */
+const LUNCH_PRICE = 130;
+const LUNCH_SODA_ID = "dryck-burk-33cl";
+
+function getStockholmParts() {
+  const dtf = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hour12: false,
+  });
+
+  const parts = dtf.formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+
+  const hour = Number(get("hour"));
+  const minute = Number(get("minute"));
+
+  // sv-SE weekday short: "mån", "tis", "ons", "tors", "fre", "lör", "sön"
+  const weekday = get("weekday").toLowerCase();
+
+  return { hour, minute, weekday };
+}
+
+function isLunchTimeStockholmNow() {
+  const { hour, minute, weekday } = getStockholmParts();
+
+  const isWeekday =
+    weekday === "mån" ||
+    weekday === "tis" ||
+    weekday === "ons" ||
+    weekday === "tors" ||
+    weekday === "fre";
+
+  const minutes = hour * 60 + minute;
+  const start = 10 * 60 + 30; // 10:30
+  const end = 14 * 60; // 14:00
+
+  return isWeekday && minutes >= start && minutes < end;
+}
+
+function isLunchEligible(item: MenuItem) {
+  const name = item.name.toLowerCase();
+
+  const isPizzaNo1to66 =
+    typeof item.no === "number" && item.no >= 1 && item.no <= 66;
+
+  // Undantag enligt skylten: "trekronor" & "dubbelinbakade"
+  const isExcluded =
+    name.includes("trekronor") ||
+    name.includes("tre kronor") ||
+    name.includes("dubbelinbakad") ||
+    name.includes("dubbel inbakad");
+
+  // "All kebabsortiment"
+  const isKebab = item.category === "Kebab & rätter";
+
+  // "Sallader nr 1-8" (om du har sådana senare)
+  const isSalad1to8 =
+    item.category === "Sallader" &&
+    typeof item.no === "number" &&
+    item.no >= 1 &&
+    item.no <= 8;
+
+  // "Hamburgare & grill" (om du har kategori/namn senare)
+  const isBurgerOrGrill =
+    item.category.toLowerCase().includes("grill") ||
+    item.category.toLowerCase().includes("hamburg") ||
+    name.includes("hamburg") ||
+    name.includes("grill");
+
+  return (
+    (isPizzaNo1to66 && !isExcluded) ||
+    isKebab ||
+    isSalad1to8 ||
+    isBurgerOrGrill
+  );
+}
+
+type AvailabilityMap = Record<string, boolean>;
+
+async function fetchAvailabilityMap(): Promise<AvailabilityMap> {
+  const res = await fetch("/api/menu/availability", { cache: "no-store" });
+  if (!res.ok) return {};
+  const map = (await res.json()) as AvailabilityMap;
+  return map || {};
+}
+
 export function useCustomerOrder() {
   const router = useRouter();
 
@@ -666,20 +765,103 @@ export function useCustomerOrder() {
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  // ✅ NEW: availability state (förhindrar addToCart även om UI missar)
+  const [availability, setAvailability] = useState<AvailabilityMap>({});
+  const [availabilityLoaded, setAvailabilityLoaded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+
+    const load = async () => {
+      try {
+        const map = await fetchAvailabilityMap();
+        if (!alive) return;
+        setAvailability(map);
+      } catch {
+        // ignore
+      } finally {
+        if (!alive) return;
+        setAvailabilityLoaded(true);
+      }
+    };
+
+    load();
+
+    // valfritt: håll kundsidan i sync med admin
+    const t = window.setInterval(load, 15000);
+
+    return () => {
+      alive = false;
+      window.clearInterval(t);
+    };
+  }, []);
+
+  function isAvailableNow(itemId: string) {
+    return availability[itemId] !== false; // saknas => tillgänglig
+  }
+
+  const lunchActive = useMemo(() => isLunchTimeStockholmNow(), []);
+
   const cartLines = useMemo(() => {
-    return cart
+    const base = cart
       .map((c) => ({
         ...c,
         item: MENU.find((m) => m.id === c.itemId),
       }))
       .filter((x) => Boolean(x.item)) as Array<CartItem & { item: MenuItem }>;
-  }, [cart]);
+
+    // Justera priser till lunchpris om lunch gäller och varan är eligible
+    const adjusted = base.map((line) => {
+      const eligible = lunchActive && isLunchEligible(line.item);
+      const adjustedItem = eligible
+        ? { ...line.item, price: LUNCH_PRICE }
+        : line.item;
+
+      return {
+        ...line,
+        item: adjustedItem,
+        _lunchEligible: eligible,
+      } as (CartItem & { item: MenuItem }) & { _lunchEligible: boolean };
+    });
+
+    // Lägg till gratis burkläsk 33cl per lunch-eligible produkt (virtuella rader)
+    const lunchCount = adjusted.reduce(
+      (n, l: any) => n + (l._lunchEligible ? 1 : 0),
+      0
+    );
+
+    if (!lunchActive || lunchCount === 0) return adjusted;
+
+    const soda = MENU.find((m) => m.id === LUNCH_SODA_ID);
+    if (!soda) return adjusted;
+
+    const freeSodaItem: MenuItem = { ...soda, price: 0 };
+
+    const freeSodas: Array<CartItem & { item: MenuItem }> = Array.from(
+      { length: lunchCount },
+      (_, i) => ({
+        uid: `lunch-soda-${i}-${Date.now()}`,
+        itemId: LUNCH_SODA_ID,
+        comment: "Ingår i lunchpaket",
+        item: freeSodaItem,
+      })
+    );
+
+    return [...adjusted, ...freeSodas];
+  }, [cart, lunchActive]);
 
   const total = useMemo(() => {
     return cartLines.reduce((sum, l) => sum + l.item.price, 0);
   }, [cartLines]);
 
   function addToCart(itemId: string) {
+    // ✅ Blockera "slut" även om UI inte har hunnit uppdatera
+    // (om availability inte är laddad än, låter vi det gå igenom – men du kan välja att stoppa)
+    if (availabilityLoaded && !isAvailableNow(itemId)) {
+      alert("Den här produkten är tyvärr ej tillgänglig just nu.");
+      return;
+    }
+
     setCart((prev) => [...prev, { uid: uid(), itemId, comment: "" }]);
   }
 
@@ -692,10 +874,16 @@ export function useCustomerOrder() {
   }
 
   function removeLine(cartUid: string) {
+    // Stoppa borttagning av virtuella lunch-läskrader (de styrs av lunchregeln)
+    if (cartUid.startsWith("lunch-soda-")) return;
+
     setCart((prev) => prev.filter((x) => x.uid !== cartUid));
   }
 
   function setLineComment(cartUid: string, comment: string) {
+    // Kommentera inte virtuella rader
+    if (cartUid.startsWith("lunch-soda-")) return;
+
     setCart((prev) =>
       prev.map((x) => (x.uid === cartUid ? { ...x, comment } : x))
     );
@@ -714,11 +902,23 @@ export function useCustomerOrder() {
       return;
     }
 
+    // ✅ Sista skydd: stoppa checkout om någon (icke-gratis) vara har blivit "slut"
+    // (Gratis lunch-läsk får alltid vara kvar)
+    const blocked = cart
+      .map((c) => MENU.find((m) => m.id === c.itemId))
+      .filter(Boolean)
+      .some((it) => it!.id !== LUNCH_SODA_ID && availabilityLoaded && !isAvailableNow(it!.id));
+
+    if (blocked) {
+      alert("En eller flera produkter i varukorgen är ej tillgängliga just nu. Ta bort dem och försök igen.");
+      return;
+    }
+
     const payload = {
       createdAt: new Date().toISOString(),
       items: cartLines.map((l) => ({
         name: l.item.name,
-        price: l.item.price,
+        price: l.item.price, // lunchpris + gratis läsk redan inräknat
         comment: l.comment?.trim() || "",
         qty: 1,
       })),
@@ -763,6 +963,11 @@ export function useCustomerOrder() {
     isSearching,
     filteredMenu,
     categoryCounts,
+    lunchActive,
+
+    // ✅ (valfritt) exponera availability om du vill visa status i UI
+    availability,
+    availabilityLoaded,
 
     setActiveCategory,
     setQ,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { MENU, type MenuItem as AppMenuItem } from "../kund/useCustomerOrder";
 
 type DbOrder = {
   id: string;
@@ -15,10 +16,13 @@ type DbOrder = {
   paid_at: string | null;
 };
 
-// 👇 NYTT: meny-items för "slut"-funktionen
-type MenuItem = {
+type AvailabilityMap = Record<string, boolean>;
+
+type MenuPick = {
   id: string;
   name: string;
+  no?: number;
+  category?: string;
   is_available: boolean;
 };
 
@@ -328,8 +332,8 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   const [colCount, setColCount] = useState(1);
 
-  // 👇 NYTT: state för meny/tillgänglighet
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  // ✅ NYTT: meny/tillgänglighet via vår API (menu_availability)
+  const [availability, setAvailability] = useState<AvailabilityMap>({});
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [menuBusy, setMenuBusy] = useState(false);
   const [menuMsg, setMenuMsg] = useState<string>("");
@@ -357,49 +361,78 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     return cols;
   }, [visible, colCount]);
 
-  async function fetchMenuItems() {
-    // 🔧 Ändra tabellnamn här om din meny heter något annat
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select("id,name,is_available")
-      .order("name", { ascending: true });
+  const menuItems: MenuPick[] = useMemo(() => {
+    const list = (MENU as AppMenuItem[]).map((it) => {
+      const isAvail = availability[it.id] !== false; // saknas i DB => tillgänglig
+      return {
+        id: it.id,
+        name: it.name,
+        no: it.no,
+        category: it.category,
+        is_available: isAvail,
+      };
+    });
 
-    if (error) {
-      console.log("Kunde inte hämta meny:", error.message);
-      return;
+    // Sortera: nummer först om finns, annars alfabetiskt
+    return list.sort((a, b) => {
+      const an = typeof a.no === "number" ? a.no : 999999;
+      const bn = typeof b.no === "number" ? b.no : 999999;
+      if (an !== bn) return an - bn;
+      return a.name.localeCompare(b.name, "sv");
+    });
+  }, [availability]);
+
+  const selectedItem = useMemo(
+    () => menuItems.find((x) => x.id === selectedItemId),
+    [menuItems, selectedItemId]
+  );
+
+  async function fetchAvailability() {
+    try {
+      const res = await fetch("/api/menu/availability", { cache: "no-store" });
+      if (!res.ok) {
+        console.log("Kunde inte hämta availability:", res.status);
+        return;
+      }
+      const map = (await res.json()) as AvailabilityMap;
+      setAvailability(map || {});
+      setSelectedItemId((prev) => prev || (menuItems[0]?.id ?? ""));
+    } catch (e) {
+      console.log("Kunde inte hämta availability:", e);
     }
-
-    const list = (data ?? []) as MenuItem[];
-    setMenuItems(list);
-
-    // Sätt default-val om inget valt
-    setSelectedItemId((prev) => prev || (list[0]?.id ?? ""));
   }
 
-  async function setAvailability(itemId: string, isAvailable: boolean) {
+  async function setAvailabilityApi(itemId: string, isAvailable: boolean) {
     if (!itemId) return;
     setMenuBusy(true);
     setMenuMsg("");
 
-    // 🔧 Ändra tabellnamn + kolumn här om din DB skiljer sig
-    const { error } = await supabase
-      .from("menu_items")
-      .update({ is_available: isAvailable })
-      .eq("id", itemId);
+    try {
+      const res = await fetch("/api/menu/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, available: isAvailable }),
+      });
 
-    if (error) {
-      alert("Kunde inte uppdatera produkt: " + error.message);
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {}
+
+      if (!res.ok) {
+        const msg =
+          (data && (data.detail || data.error)) || `Serverfel (${res.status})`;
+        alert("Kunde inte uppdatera produkt: " + msg);
+        return;
+      }
+
+      // uppdatera lokalt direkt
+      setAvailability((prev) => ({ ...prev, [itemId]: isAvailable }));
+      setMenuMsg(isAvailable ? "✅ Produkten är aktiv igen" : "⛔ Produkten är markerad som slut");
+    } finally {
       setMenuBusy(false);
-      return;
     }
-
-    // Uppdatera listan lokalt
-    setMenuItems((prev) =>
-      prev.map((x) => (x.id === itemId ? { ...x, is_available: isAvailable } : x))
-    );
-
-    setMenuMsg(isAvailable ? "✅ Produkten är aktiv igen" : "⛔ Produkten är markerad som slut");
-    setMenuBusy(false);
   }
 
   async function fetchOrders() {
@@ -522,7 +555,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     fetchOrders();
-    fetchMenuItems();
+    fetchAvailability();
 
     const ch = supabase
       .channel("orders-admin")
@@ -546,10 +579,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectedItem = useMemo(
-    () => menuItems.find((x) => x.id === selectedItemId),
-    [menuItems, selectedItemId]
-  );
+  // Se till att vi har ett valt item när listan finns
+  useEffect(() => {
+    if (!selectedItemId && menuItems.length > 0) {
+      setSelectedItemId(menuItems[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuItems.length]);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
@@ -579,7 +615,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
 
-          {/* ✅ NYTT: Rullgardin för "slut"-produkter */}
+          {/* ✅ Rullgardin för "slut"-produkter (scrollar automatiskt) */}
           <div className="mt-3 grid gap-2 md:grid-cols-12 md:items-center">
             <div className="md:col-span-6">
               <div className="text-xs font-semibold text-slate-600">
@@ -601,24 +637,30 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                 {menuItems.length === 0 ? (
                   <option value="">(Ingen meny hittades)</option>
                 ) : (
-                  menuItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name} {it.is_available ? "" : "(SLUT)"}
-                    </option>
-                  ))
+                  menuItems.map((it) => {
+                    const prefix =
+                      typeof it.no === "number" ? `${it.no}. ` : "";
+                    const status = it.is_available ? "🟢" : "🔴";
+                    return (
+                      <option key={it.id} value={it.id}>
+                        {status} {prefix}
+                        {it.name}
+                      </option>
+                    );
+                  })
                 )}
               </select>
+
+              <div className="mt-1 text-xs text-slate-500">
+                🟢 Tillgänglig • 🔴 Slut
+              </div>
             </div>
 
             <div className="md:col-span-6 flex flex-wrap gap-2 md:justify-end md:pt-5">
               <Button
                 variant="danger"
-                disabled={
-                  menuBusy ||
-                  !selectedItemId ||
-                  !selectedItem?.is_available
-                }
-                onClick={() => setAvailability(selectedItemId, false)}
+                disabled={menuBusy || !selectedItemId || !selectedItem?.is_available}
+                onClick={() => setAvailabilityApi(selectedItemId, false)}
                 title="Gör produkten otillgänglig på kundsidan"
               >
                 Markera som slut
@@ -626,12 +668,8 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
               <Button
                 variant="secondary"
-                disabled={
-                  menuBusy ||
-                  !selectedItemId ||
-                  !!selectedItem?.is_available
-                }
-                onClick={() => setAvailability(selectedItemId, true)}
+                disabled={menuBusy || !selectedItemId || !!selectedItem?.is_available}
+                onClick={() => setAvailabilityApi(selectedItemId, true)}
                 title="Gör produkten tillgänglig igen"
               >
                 Aktivera igen
