@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import jsPDF from "jspdf";
 
+// ✅ Viktigt: ändra import-path om din useCustomerOrder ligger annorlunda
+import { MENU } from "../kund/useCustomerOrder";
+
 type PendingOrder = {
   createdAt?: string;
   items: { name: string; price: number; comment?: string; qty: number }[];
   total?: number;
 
-  customerName?: string; // valfritt i UI
-  customerPhone?: string; // obligatoriskt
+  customerName?: string;
+  customerPhone?: string;
 };
 
 type ReceiptData = {
@@ -58,7 +61,7 @@ function Button({
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
   disabled?: boolean;
   title?: string;
   type?: "button" | "submit";
@@ -72,6 +75,7 @@ function Button({
     secondary:
       "bg-white text-slate-900 ring-1 ring-slate-300 hover:bg-slate-50",
     ghost: "bg-transparent text-slate-700 hover:bg-slate-100",
+    danger: "bg-rose-600 text-white hover:bg-rose-700",
   };
 
   return (
@@ -160,14 +164,7 @@ function makeReceiptNo(createdAtISO: string) {
   return `${y}${mo}${da}-${h}${mi}${se}-${ms}`;
 }
 
-function isFreeSodaLine(it: { name: string; price: number; comment?: string }) {
-  const n = (it.name ?? "").toLowerCase();
-  const c = (it.comment ?? "").toLowerCase();
-  return it.price === 0 && (n.includes("burk") || c.includes("lunchpaket"));
-}
-
 function normalizeOrder(order: PendingOrder) {
-  // ✅ Tillåt även gratis-produkter (price === 0) så lunch-läsk syns i checkout & kvitto
   const items = (order.items ?? [])
     .map((it) => ({
       name: String(it?.name ?? "").trim(),
@@ -175,14 +172,10 @@ function normalizeOrder(order: PendingOrder) {
       qty: Math.max(1, Math.floor(safeNumber(it?.qty, 1))),
       comment: String(it?.comment ?? ""),
     }))
-    .filter((it) => it.name.length > 0 && it.price >= 0 && it.qty > 0);
+    // ✅ tillåt gratisrader (price kan vara 0)
+    .filter((it) => it.name.length > 0 && it.qty > 0 && it.price >= 0);
 
-  const computedSubtotal = items.reduce(
-    (sum, it) => sum + it.price * it.qty,
-    0
-  );
-
-  // ✅ INGEN serviceavgift
+  const computedSubtotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
   const computedTotal = computedSubtotal;
 
   const createdAt = order.createdAt ?? new Date().toISOString();
@@ -192,7 +185,7 @@ function normalizeOrder(order: PendingOrder) {
     items,
     subtotal: computedSubtotal,
     total: computedTotal,
-    customerName: String(order.customerName ?? "").trim(), // kan vara tom
+    customerName: String(order.customerName ?? "").trim(),
     customerPhone: String(order.customerPhone ?? "").trim(),
     receiptNo: makeReceiptNo(createdAt),
   };
@@ -200,10 +193,6 @@ function normalizeOrder(order: PendingOrder) {
 
 function formatMoney(n: number) {
   return `${n} kr`;
-}
-
-function formatLinePrice(n: number) {
-  return n === 0 ? "Gratis" : `${n} kr`;
 }
 
 function generateReceiptPdf(receipt: ReceiptData) {
@@ -257,8 +246,7 @@ function generateReceiptPdf(receipt: ReceiptData) {
   };
 
   receipt.items.forEach((it) => {
-    const rowTotal = it.price * it.qty;
-    addLine(`${it.qty}× ${it.name}`, rowTotal === 0 ? "Gratis" : formatMoney(rowTotal));
+    addLine(`${it.qty}× ${it.name}`, formatMoney(it.price * it.qty));
     const c = (it.comment ?? "").trim();
     if (c) addLine(`  Kommentar: ${c}`, "");
   });
@@ -283,8 +271,6 @@ function generateReceiptPdf(receipt: ReceiptData) {
 }
 
 function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
-  const lunchSodas = receipt.items.filter((it) => isFreeSodaLine(it)).reduce((s, it) => s + it.qty, 0);
-
   return (
     <div className="mt-4 rounded-2xl bg-white ring-1 ring-slate-200 overflow-hidden">
       <div className="px-4 py-4 bg-slate-50 border-b border-slate-200">
@@ -301,12 +287,6 @@ function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
                 {new Date(receipt.createdAt).toLocaleString("sv-SE")}
               </span>
             </div>
-
-            {lunchSodas > 0 && (
-              <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200">
-                Lunchpaket aktivt • {lunchSodas}× Burk 33cl ingår gratis
-              </div>
-            )}
           </div>
 
           <div className="text-right">
@@ -347,11 +327,6 @@ function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-slate-900">
                     {it.qty}× {it.name}
-                    {isFreeSodaLine(it) && (
-                      <span className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-900 ring-1 ring-emerald-200">
-                        Ingår
-                      </span>
-                    )}
                   </div>
                   {!!(it.comment ?? "").trim() && (
                     <div className="mt-1 text-xs text-slate-600">
@@ -361,11 +336,69 @@ function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
                   )}
                 </div>
                 <div className="text-sm font-extrabold text-slate-900 whitespace-nowrap">
-                  {it.price * it.qty === 0 ? "Gratis" : formatMoney(it.price * it.qty)}
+                  {formatMoney(it.price * it.qty)}
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** ✅ Popup/modal */
+function Modal({
+  open,
+  title,
+  subtitle,
+  children,
+  onClose,
+  footer,
+}: {
+  open: boolean;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="absolute inset-x-0 top-8 mx-auto w-[min(720px,92vw)]">
+        <div className="rounded-2xl bg-white shadow-xl ring-1 ring-slate-200 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-extrabold text-slate-900">
+                {title}
+              </div>
+              {subtitle ? (
+                <div className="mt-0.5 text-xs text-slate-600">{subtitle}</div>
+              ) : null}
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              aria-label="Stäng"
+              title="Stäng"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="px-4 py-4">{children}</div>
+
+          {footer ? (
+            <div className="px-4 py-3 bg-white border-t border-slate-200">
+              {footer}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -386,8 +419,43 @@ export default function CheckoutClient() {
 
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
+  // ✅ Popup: dryck/tillbehör
+  const [addonsOpen, setAddonsOpen] = useState(false);
+
+  // ✅ feedback i popupen
+  const [justAddedName, setJustAddedName] = useState<string | null>(null);
+  const [lastAddedBanner, setLastAddedBanner] = useState<string>("");
+
   const success = params.get("success") === "true";
   const canceled = params.get("canceled") === "true";
+
+  const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
+  const total = normalized?.total ?? 0;
+
+  const drinkAndExtras = useMemo(() => {
+    return MENU.filter((m) => m.category === "Dryck & Tillbehör");
+  }, []);
+
+  // Visa info om lunchläsk finns (pris 0)
+  const hasFreeSoda = useMemo(() => {
+    const items = normalized?.items ?? [];
+    return items.some(
+      (it) =>
+        it.name.toLowerCase().includes("burk") &&
+        it.name.toLowerCase().includes("33") &&
+        it.price === 0
+    );
+  }, [normalized]);
+
+  // qty i ordern per produktnamn (för att visa räknare i popup)
+  const qtyByName = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of normalized?.items ?? []) {
+      const key = it.name;
+      m.set(key, (m.get(key) ?? 0) + (it.qty ?? 1));
+    }
+    return m;
+  }, [normalized]);
 
   useEffect(() => {
     if (success) {
@@ -404,7 +472,6 @@ export default function CheckoutClient() {
 
           const r = normalizeOrder(merged);
 
-          // ✅ backend-krav: om namn saknas, visa "Kund" på kvitto också
           const receiptSafe: ReceiptData = {
             ...r,
             customerName: r.customerName || "Kund",
@@ -438,6 +505,9 @@ export default function CheckoutClient() {
 
       setCustomerName(String(parsed.customerName ?? ""));
       setCustomerPhone(String(parsed.customerPhone ?? ""));
+
+      // ✅ Öppna ALLTID popup när man går in i checkout (på mount)
+      setAddonsOpen(true);
     } catch {
       setOrder(null);
     } finally {
@@ -452,9 +522,7 @@ export default function CheckoutClient() {
     setOrder(next);
     try {
       sessionStorage.setItem("pendingOrder", JSON.stringify(next));
-    } catch {
-      // ignore
-    }
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerName, customerPhone]);
 
@@ -467,24 +535,33 @@ export default function CheckoutClient() {
       const next: PendingOrder = { ...prev, items: nextItems };
       try {
         sessionStorage.setItem("pendingOrder", JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      } catch {}
       return next;
     });
   }
 
-  const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
+  function addAddon(name: string, price: number) {
+    setOrder((prev) => {
+      if (!prev) return prev;
 
-  const subtotal = normalized?.subtotal ?? 0;
-  const total = normalized?.total ?? 0;
+      const next: PendingOrder = {
+        ...prev,
+        items: [...(prev.items ?? []), { name, price, qty: 1, comment: "" }],
+      };
 
-  const lunchSodaQty = useMemo(() => {
-    if (!normalized) return 0;
-    return normalized.items
-      .filter((it) => isFreeSodaLine(it))
-      .reduce((s, it) => s + it.qty, 0);
-  }, [normalized]);
+      try {
+        sessionStorage.setItem("pendingOrder", JSON.stringify(next));
+      } catch {}
+
+      return next;
+    });
+
+    // ✅ tydlig feedback i UI
+    setJustAddedName(name);
+    setLastAddedBanner(`✅ Tillagd i varukorgen: ${name}`);
+    window.setTimeout(() => setJustAddedName(null), 700);
+    window.setTimeout(() => setLastAddedBanner(""), 1600);
+  }
 
   async function payWithStripe() {
     setError("");
@@ -505,14 +582,11 @@ export default function CheckoutClient() {
       setError("Din order är tom eller saknar giltiga produkter.");
       return;
     }
-
-    // ✅ Tillåt total = 0? I praktiken ska det inte hända. Men vi behåller samma skydd.
-    if (!Number.isFinite(payload.total) || payload.total <= 0) {
+    if (payload.total == null || payload.total <= 0) {
       setError("Totalt belopp saknas.");
       return;
     }
 
-    // ✅ ENDA kravet i UI: giltigt telefonnummer
     const normalizedPhone = normalizePhoneSE(payload.customerPhone);
     if (!normalizedPhone) {
       setError("Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567.");
@@ -520,7 +594,6 @@ export default function CheckoutClient() {
     }
     payload.customerPhone = normalizedPhone;
 
-    // ✅ Viktigt: backend kräver ofta namn → skicka "Kund" om tomt
     const safeName = payload.customerName?.trim() || "Kund";
 
     const payloadForApi: PendingOrder = {
@@ -544,9 +617,7 @@ export default function CheckoutClient() {
       let data: any = null;
       try {
         data = JSON.parse(text);
-      } catch {
-        // non-json
-      }
+      } catch {}
 
       if (!res.ok) {
         console.error("Checkout API error:", res.status, data ?? text);
@@ -594,9 +665,84 @@ export default function CheckoutClient() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
+      {/* ✅ Popup: Dryck & Tillbehör (ÖPPNAS ALLTID vid entry till checkout) */}
+      <Modal
+        open={!success && addonsOpen}
+        title="Vill du lägga till dryck eller tillbehör?"
+        subtitle="Valfritt – du kan fortsätta direkt till betalning."
+        onClose={() => setAddonsOpen(false)}
+        footer={
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button variant="secondary" onClick={() => setAddonsOpen(false)}>
+              Fortsätt till betalning
+            </Button>
+          </div>
+        }
+      >
+        {hasFreeSoda && (
+          <div className="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
+            ✅ Luncherbjudande: Burk 33cl ingår gratis i din order.
+          </div>
+        )}
+
+        {lastAddedBanner && (
+          <div className="mb-3 rounded-xl bg-slate-900 p-3 text-sm text-white">
+            {lastAddedBanner}
+          </div>
+        )}
+
+        {drinkAndExtras.length === 0 ? (
+          <div className="text-sm text-slate-600">
+            Hittar inga produkter i kategorin “Dryck & Tillbehör”.
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {drinkAndExtras.map((it) => {
+              const qtyInCart = qtyByName.get(it.name) ?? 0;
+              const isJustAdded = justAddedName === it.name;
+
+              return (
+                <div
+                  key={it.id}
+                  className={cx(
+                    "rounded-2xl bg-white p-3 ring-1 ring-slate-200 flex items-center justify-between gap-3",
+                    isJustAdded && "ring-2 ring-emerald-300"
+                  )}
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 truncate">
+                      {it.name}
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-600">
+                      {formatMoney(it.price)}
+                      {qtyInCart > 0 ? (
+                        <span className="ml-2 font-semibold text-slate-700">
+                          • I varukorgen: {qtyInCart}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant={isJustAdded ? "secondary" : "primary"}
+                    onClick={() => addAddon(it.name, it.price)}
+                    className="shrink-0"
+                    title="Lägg till"
+                  >
+                    {isJustAdded ? "Tillagd ✓" : "+ Lägg till"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Modal>
+
       <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="mx-auto max-w-3xl px-6 py-6">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Checkout</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+            Checkout
+          </h1>
           <p className="mt-2 text-slate-600">
             Se över din beställning och gå vidare till betalning.
           </p>
@@ -628,7 +774,8 @@ export default function CheckoutClient() {
               </>
             ) : (
               <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 text-sm text-slate-700">
-                Hittade inget kvitto att visa. (Om du laddar om sidan kan webbläsaren ha rensat data.)
+                Hittade inget kvitto att visa. (Om du laddar om sidan kan
+                webbläsaren ha rensat data.)
               </div>
             )}
 
@@ -645,7 +792,9 @@ export default function CheckoutClient() {
 
         {canceled && (
           <Card className="p-5 ring-1 ring-amber-200 bg-amber-50/50">
-            <div className="text-lg font-bold text-amber-900">Betalning avbruten</div>
+            <div className="text-lg font-bold text-amber-900">
+              Betalning avbruten
+            </div>
             <div className="mt-1 text-sm text-amber-900/80">
               Du kan försöka igen när du vill.
             </div>
@@ -658,52 +807,43 @@ export default function CheckoutClient() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xl font-bold text-slate-900">Din order</div>
-                  <div className="mt-1 text-sm text-slate-600">Kontrollera innan du betalar.</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    Kontrollera innan du betalar.
+                  </div>
                 </div>
-                <Button onClick={backToShop} variant="secondary">
-                  Tillbaka
-                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => setAddonsOpen(true)} variant="secondary">
+                    + Dryck & tillbehör
+                  </Button>
+                  <Button onClick={backToShop} variant="secondary">
+                    Tillbaka
+                  </Button>
+                </div>
               </div>
 
               {loading ? (
                 <div className="mt-4 text-slate-600">Laddar…</div>
               ) : !normalized ? (
                 <div className="mt-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
-                  <div className="font-semibold text-slate-900">Ingen order hittades</div>
+                  <div className="font-semibold text-slate-900">
+                    Ingen order hittades
+                  </div>
                   <div className="mt-1 text-sm text-slate-600">
                     Gå tillbaka och lägg något i varukorgen.
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* ✅ Lunchpaket-banner om gratis burk finns */}
-                  {lunchSodaQty > 0 && (
-                    <div className="mt-4 rounded-2xl bg-emerald-50 ring-1 ring-emerald-200 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-extrabold text-emerald-900">
-                            Lunchpaket aktiverat ✅
-                          </div>
-                          <div className="mt-1 text-sm text-emerald-900/80">
-                            Pris justerat till <span className="font-extrabold">130 kr</span> och{" "}
-                            <span className="font-extrabold">{lunchSodaQty}× Burk 33cl</span> ingår gratis.
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-900 ring-1 ring-emerald-200">
-                          Erbjudande
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ✅ Endast telefon krävs */}
                   <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                     <div className="text-sm font-semibold text-slate-800">
                       Mobilnummer Obligatoriskt för orderstatus via sms
                     </div>
 
                     <label className="grid gap-1">
-                      <span className="text-xs font-semibold text-slate-700">*skriv här*</span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        *skriv här*
+                      </span>
                       <input
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
@@ -720,47 +860,47 @@ export default function CheckoutClient() {
 
                   <ul className="mt-4 space-y-2">
                     {normalized.items.map((it, idx) => {
-                      const isFree = isFreeSodaLine(it);
+                      const isFree = it.price === 0;
                       return (
-                        <li key={idx} className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                        <li
+                          key={idx}
+                          className={cx(
+                            "rounded-2xl bg-white p-4 ring-1 ring-slate-200",
+                            isFree && "bg-emerald-50/40 ring-emerald-200"
+                          )}
+                        >
                           <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
                               <div className="font-semibold text-slate-900">
-                                {it.qty}× {it.name}
-                                {isFree && (
-                                  <span className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-900 ring-1 ring-emerald-200">
-                                    Ingår gratis
+                                {it.qty}× {it.name}{" "}
+                                {isFree ? (
+                                  <span className="ml-2 text-xs font-extrabold text-emerald-700">
+                                    (GRATIS)
                                   </span>
-                                )}
+                                ) : null}
                               </div>
 
-                              {!isFree && (
-                                <div className="mt-3">
-                                  <label className="text-xs font-bold text-slate-700">
-                                    Kommentar (valfritt)
-                                  </label>
-                                  <input
-                                    value={it.comment ?? ""}
-                                    onChange={(e) => setItemComment(idx, e.target.value)}
-                                    placeholder="Ex: utan lök"
-                                    className={cx(
-                                      "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
-                                      "ring-1 ring-slate-300 placeholder:text-slate-400",
-                                      "focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                    )}
-                                  />
-                                </div>
-                              )}
-
-                              {isFree && !!(it.comment ?? "").trim() && (
-                                <div className="mt-2 text-xs text-slate-600">
-                                  {it.comment}
-                                </div>
-                              )}
+                              <div className="mt-3">
+                                <label className="text-xs font-bold text-slate-700">
+                                  Kommentar (valfritt)
+                                </label>
+                                <input
+                                  value={it.comment ?? ""}
+                                  onChange={(e) =>
+                                    setItemComment(idx, e.target.value)
+                                  }
+                                  placeholder="Ex: utan lök"
+                                  className={cx(
+                                    "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
+                                    "ring-1 ring-slate-300 placeholder:text-slate-400",
+                                    "focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                  )}
+                                />
+                              </div>
                             </div>
 
                             <div className="font-extrabold text-slate-900 whitespace-nowrap">
-                              {formatLinePrice(it.price)}
+                              {formatMoney(it.price)}
                             </div>
                           </div>
                         </li>
@@ -772,8 +912,12 @@ export default function CheckoutClient() {
                     <div className="px-4 py-4 space-y-2">
                       <div className="h-px bg-slate-200" />
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-slate-700">Totalt</span>
-                        <span className="text-xl font-extrabold text-slate-900">{total} kr</span>
+                        <span className="text-sm font-semibold text-slate-700">
+                          Totalt
+                        </span>
+                        <span className="text-xl font-extrabold text-slate-900">
+                          {total} kr
+                        </span>
                       </div>
                     </div>
                   </div>
