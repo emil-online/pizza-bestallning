@@ -39,15 +39,6 @@ export async function POST(req: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    console.log(
-      "CHECKOUT COMPLETED:",
-      session.id,
-      "paid:",
-      session.payment_status,
-      "metadata:",
-      session.metadata
-    );
-
     // Bara om betald
     if (session.payment_status !== "paid") {
       return NextResponse.json({ received: true, ignored: true });
@@ -62,7 +53,7 @@ export async function POST(req: Request) {
     const paymentIntentId =
       typeof session.payment_intent === "string" ? session.payment_intent : null;
 
-    // Markera order som betald + synlig i admin
+    // ✅ Uppdatera ordern som betald (ordernummer räknas i VIEW: orders_with_number)
     const { error } = await supabaseAdmin
       .from("orders")
       .update({
@@ -75,7 +66,7 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("Supabase update error:", error);
-      return NextResponse.json({ received: true, db_error: true });
+      return NextResponse.json({ received: true, db_error: true }, { status: 500 });
     }
   }
 

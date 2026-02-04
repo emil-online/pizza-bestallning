@@ -137,7 +137,8 @@ export async function POST(req: Request) {
         customer_phone: customerPhone,
       },
 
-      success_url: `${origin}/checkout?success=true`,
+      // ✅ Viktigt: skicka med orderId så success-sidan kan hämta order_number
+      success_url: `${origin}/checkout?success=true&orderId=${orderId}`,
       cancel_url: `${origin}/checkout?canceled=true`,
     });
 

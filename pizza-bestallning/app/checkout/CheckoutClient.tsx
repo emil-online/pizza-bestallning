@@ -7,6 +7,9 @@ import jsPDF from "jspdf";
 // ✅ Viktigt: ändra import-path om din useCustomerOrder ligger annorlunda
 import { MENU } from "../kund/useCustomerOrder";
 
+// ✅ Lägg till din supabase-klient (ändra path om din ligger annorlunda)
+import { supabase } from "@/lib/supabaseClient";
+
 type PendingOrder = {
   createdAt?: string;
   items: { name: string; price: number; comment?: string; qty: number }[];
@@ -23,6 +26,11 @@ type ReceiptData = {
   items: { name: string; price: number; comment?: string; qty: number }[];
   subtotal: number;
   total: number;
+
+  // ✅ NYTT: ordernummer från Supabase VIEW (51, 52, 53...)
+  orderNumber?: number;
+
+  // (behålls som fallback om ordernummer inte kan hämtas)
   receiptNo: string;
 };
 
@@ -208,6 +216,13 @@ function generateReceiptPdf(receipt: ReceiptData) {
   y += 8;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
+
+  // ✅ Visa ordernummer om det finns
+  if (typeof receipt.orderNumber === "number") {
+    doc.text(`Ordernummer: ${receipt.orderNumber}`, left, y);
+    y += 5;
+  }
+
   doc.text(`Kvittonummer: ${receipt.receiptNo}`, left, y);
 
   y += 5;
@@ -267,7 +282,12 @@ function generateReceiptPdf(receipt: ReceiptData) {
   doc.setTextColor(120);
   doc.text("Tack för din beställning!", left, y);
 
-  doc.save(`kvitto-il-forno-${receipt.receiptNo}.pdf`);
+  const orderTag =
+    typeof receipt.orderNumber === "number"
+      ? `order-${receipt.orderNumber}`
+      : `kvitto-${receipt.receiptNo}`;
+
+  doc.save(`il-forno-${orderTag}.pdf`);
 }
 
 function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
@@ -277,6 +297,15 @@ function ReceiptPreview({ receipt }: { receipt: ReceiptData }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-sm font-extrabold text-slate-900">Kvitto</div>
+
+            {/* ✅ Visa ordernummer om det finns */}
+            {typeof receipt.orderNumber === "number" ? (
+              <div className="mt-1 text-xs text-slate-600">
+                Ordernummer:{" "}
+                <span className="font-semibold">{receipt.orderNumber}</span>
+              </div>
+            ) : null}
+
             <div className="mt-1 text-xs text-slate-600">
               Kvittonummer:{" "}
               <span className="font-semibold">{receipt.receiptNo}</span>
@@ -405,6 +434,48 @@ function Modal({
   );
 }
 
+// ✅ Hämtar order_number från Supabase viewn, via order_id eller stripe_session_id
+async function fetchOrderNumberFromSupabase(args: {
+  orderId?: string | null;
+  stripeSessionId?: string | null;
+}): Promise<number | null> {
+  const { orderId, stripeSessionId } = args;
+
+  try {
+    // 1) Primärt: orderId
+    if (orderId) {
+      const { data, error } = await supabase
+        .from("orders_with_number")
+        .select("order_number")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (!error && data && typeof (data as any).order_number === "number") {
+        return (data as any).order_number as number;
+      }
+    }
+
+    // 2) Alternativ: stripe_session_id (om du sparar detta i orders)
+    if (stripeSessionId) {
+      const { data, error } = await supabase
+        .from("orders_with_number")
+        .select("order_number")
+        .eq("stripe_session_id", stripeSessionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data && typeof (data as any).order_number === "number") {
+        return (data as any).order_number as number;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
 export default function CheckoutClient() {
   const router = useRouter();
   const params = useSearchParams();
@@ -429,7 +500,10 @@ export default function CheckoutClient() {
   const success = params.get("success") === "true";
   const canceled = params.get("canceled") === "true";
 
-  const normalized = useMemo(() => (order ? normalizeOrder(order) : null), [order]);
+  const normalized = useMemo(
+    () => (order ? normalizeOrder(order) : null),
+    [order]
+  );
   const total = normalized?.total ?? 0;
 
   const drinkAndExtras = useMemo(() => {
@@ -458,61 +532,106 @@ export default function CheckoutClient() {
   }, [normalized]);
 
   useEffect(() => {
-    if (success) {
-      try {
-        const raw = sessionStorage.getItem("pendingOrder");
-        if (raw) {
-          const parsed = JSON.parse(raw) as PendingOrder;
+    let alive = true;
 
-          const merged: PendingOrder = {
-            ...parsed,
-            customerName: parsed.customerName ?? customerName,
-            customerPhone: parsed.customerPhone ?? customerPhone,
-          };
+    const run = async () => {
+      if (success) {
+        try {
+          const raw = sessionStorage.getItem("pendingOrder");
+          if (raw) {
+            const parsed = JSON.parse(raw) as PendingOrder;
 
-          const r = normalizeOrder(merged);
+            const merged: PendingOrder = {
+              ...parsed,
+              customerName: parsed.customerName ?? customerName,
+              customerPhone: parsed.customerPhone ?? customerPhone,
+            };
 
-          const receiptSafe: ReceiptData = {
-            ...r,
-            customerName: r.customerName || "Kund",
-          };
+            const r = normalizeOrder(merged);
 
-          sessionStorage.setItem("lastReceipt", JSON.stringify(receiptSafe));
-          setReceipt(receiptSafe);
-        } else {
-          const last = sessionStorage.getItem("lastReceipt");
-          if (last) setReceipt(JSON.parse(last) as ReceiptData);
+            const receiptSafe: ReceiptData = {
+              ...r,
+              customerName: r.customerName || "Kund",
+            };
+
+            sessionStorage.setItem("lastReceipt", JSON.stringify(receiptSafe));
+            if (!alive) return;
+            setReceipt(receiptSafe);
+          } else {
+            const last = sessionStorage.getItem("lastReceipt");
+            if (last && alive) setReceipt(JSON.parse(last) as ReceiptData);
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
 
-      sessionStorage.removeItem("pendingOrder");
-      setOrder(null);
-      setLoading(false);
-      return;
-    }
+        // ✅ Försök hämta ordernummer från Supabase
+        try {
+          const orderId =
+            params.get("order_id") ||
+            params.get("orderId") ||
+            sessionStorage.getItem("lastOrderId");
 
-    try {
-      const raw = sessionStorage.getItem("pendingOrder");
-      if (!raw) {
+          const stripeSessionId =
+            params.get("session_id") ||
+            params.get("stripe_session_id") ||
+            sessionStorage.getItem("lastStripeSessionId");
+
+          const orderNumber = await fetchOrderNumberFromSupabase({
+            orderId,
+            stripeSessionId,
+          });
+
+          if (alive && typeof orderNumber === "number") {
+            setReceipt((prev) => {
+              if (!prev) return prev;
+              const next = { ...prev, orderNumber };
+              sessionStorage.setItem("lastReceipt", JSON.stringify(next));
+              return next;
+            });
+          }
+        } catch {
+          // ignore
+        }
+
+        sessionStorage.removeItem("pendingOrder");
+        if (!alive) return;
         setOrder(null);
         setLoading(false);
         return;
       }
-      const parsed = JSON.parse(raw) as PendingOrder;
-      setOrder(parsed);
 
-      setCustomerName(String(parsed.customerName ?? ""));
-      setCustomerPhone(String(parsed.customerPhone ?? ""));
+      try {
+        const raw = sessionStorage.getItem("pendingOrder");
+        if (!raw) {
+          if (!alive) return;
+          setOrder(null);
+          setLoading(false);
+          return;
+        }
+        const parsed = JSON.parse(raw) as PendingOrder;
+        if (!alive) return;
+        setOrder(parsed);
 
-      // ✅ Öppna ALLTID popup när man går in i checkout (på mount)
-      setAddonsOpen(true);
-    } catch {
-      setOrder(null);
-    } finally {
-      setLoading(false);
-    }
+        setCustomerName(String(parsed.customerName ?? ""));
+        setCustomerPhone(String(parsed.customerPhone ?? ""));
+
+        // ✅ Öppna ALLTID popup när man går in i checkout (på mount)
+        setAddonsOpen(true);
+      } catch {
+        if (!alive) return;
+        setOrder(null);
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    };
+
+    run();
+
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [success]);
 
@@ -572,7 +691,9 @@ export default function CheckoutClient() {
     }
 
     if (!order) {
-      setError("Ingen order hittades. Gå tillbaka och lägg något i varukorgen först.");
+      setError(
+        "Ingen order hittades. Gå tillbaka och lägg något i varukorgen först."
+      );
       return;
     }
 
@@ -589,7 +710,9 @@ export default function CheckoutClient() {
 
     const normalizedPhone = normalizePhoneSE(payload.customerPhone);
     if (!normalizedPhone) {
-      setError("Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567.");
+      setError(
+        "Fyll i ett giltigt telefonnummer. Ex: 0701234567 eller +46701234567."
+      );
       return;
     }
     payload.customerPhone = normalizedPhone;
@@ -627,6 +750,26 @@ export default function CheckoutClient() {
             : "Kunde inte starta betalning. Kolla terminal/console."
         );
         return;
+      }
+
+      // ✅ SPARA order-id / stripe-session-id så vi kan hämta order_number på success
+      try {
+        const orderId =
+          data?.orderId || data?.order_id || data?.order?.id || null;
+        const stripeSessionId =
+          data?.stripeSessionId ||
+          data?.stripe_session_id ||
+          data?.session_id ||
+          null;
+
+        if (orderId) sessionStorage.setItem("lastOrderId", String(orderId));
+        if (stripeSessionId)
+          sessionStorage.setItem(
+            "lastStripeSessionId",
+            String(stripeSessionId)
+          );
+      } catch {
+        // ignore
       }
 
       const url = data?.url as string | undefined;
@@ -758,6 +901,14 @@ export default function CheckoutClient() {
             <div className="mt-1 text-sm text-emerald-900/80">
               Betalningen är genomförd. Här är ditt kvitto.
             </div>
+
+            {/* ✅ Visa ordernummer även i toppen */}
+            {receipt?.orderNumber != null ? (
+              <div className="mt-3 rounded-2xl bg-white p-3 ring-1 ring-emerald-200 text-sm text-emerald-900">
+                Ordernummer:{" "}
+                <span className="font-extrabold">{receipt.orderNumber}</span>
+              </div>
+            ) : null}
 
             {receipt ? (
               <>

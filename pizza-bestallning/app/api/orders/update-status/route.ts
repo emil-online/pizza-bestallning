@@ -9,8 +9,10 @@ function normalizePhoneSE(input: string): string | null {
   if (!raw) return null;
 
   if (raw.startsWith("+")) return /^\+\d{8,15}$/.test(raw) ? raw : null;
-  if (raw.startsWith("0046")) return /^\d+$/.test(raw.slice(4)) ? "+46" + raw.slice(4) : null;
-  if (raw.startsWith("46")) return /^\d+$/.test(raw.slice(2)) ? "+46" + raw.slice(2) : null;
+  if (raw.startsWith("0046"))
+    return /^\d+$/.test(raw.slice(4)) ? "+46" + raw.slice(4) : null;
+  if (raw.startsWith("46"))
+    return /^\d+$/.test(raw.slice(2)) ? "+46" + raw.slice(2) : null;
   if (raw.startsWith("07") && /^\d+$/.test(raw)) return "+46" + raw.slice(1);
 
   return null;
@@ -26,6 +28,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
 
+    // 1) Hämta order + sms-flaggor
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select("id, customer_phone, sms_cooking_sent_at, sms_ready_sent_at")
@@ -33,7 +36,10 @@ export async function POST(req: Request) {
       .single();
 
     if (error || !order) {
-      return NextResponse.json({ detail: "Order hittades inte" }, { status: 404 });
+      return NextResponse.json(
+        { detail: "Order hittades inte" },
+        { status: 404 }
+      );
     }
 
     const normalizedPhone = normalizePhoneSE(String(order.customer_phone ?? ""));
@@ -48,6 +54,22 @@ export async function POST(req: Request) {
       );
     }
 
+    // 2) Hämta ordernummer (51, 52, 53...) från VIEWN
+    const { data: nData, error: nErr } = await supabaseAdmin
+      .from("orders_with_number")
+      .select("order_number")
+      .eq("id", body.orderId)
+      .maybeSingle();
+
+    const orderNumber =
+      !nErr && nData && typeof (nData as any).order_number === "number"
+        ? ((nData as any).order_number as number)
+        : null;
+
+    const orderPrefix =
+      typeof orderNumber === "number" ? `Order #${orderNumber}: ` : "";
+
+    // 3) Spara status (som du redan gör)
     const statusText =
       body.status === "Tillagas" && body.etaMinutes
         ? `Tillagas • ${body.etaMinutes} min`
@@ -58,7 +80,7 @@ export async function POST(req: Request) {
       .update({
         status: statusText,
         eta_minutes: body.status === "Tillagas" ? body.etaMinutes ?? null : null,
-        customer_phone: normalizedPhone, // spara normaliserat
+        customer_phone: normalizedPhone,
       })
       .eq("id", body.orderId);
 
@@ -66,10 +88,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: updateError.message }, { status: 500 });
     }
 
+    // 4) SMS: Tillagas
     if (body.status === "Tillagas" && !order.sms_cooking_sent_at) {
       const msg = body.etaMinutes
-        ? `🍕 Din order tillagas nu. Klar om ca ${body.etaMinutes} min.`
-        : `🍕 Din order tillagas nu.`;
+        ? `${orderPrefix}🍕 Din order tillagas nu. Klar om ca ${body.etaMinutes} min.`
+        : `${orderPrefix}🍕 Din order tillagas nu.`;
 
       await sendSms46elks({ to: normalizedPhone, message: msg });
 
@@ -79,10 +102,13 @@ export async function POST(req: Request) {
         .eq("id", body.orderId);
     }
 
+    // 5) SMS: Klar
     if (body.status === "Klar" && !order.sms_ready_sent_at) {
+      const msg = `${orderPrefix}✅ Din order är klar att hämta. Välkommen!`;
+
       await sendSms46elks({
         to: normalizedPhone,
-        message: `✅ Din order är klar att hämta. Välkommen!`,
+        message: msg,
       });
 
       await supabaseAdmin
@@ -91,9 +117,16 @@ export async function POST(req: Request) {
         .eq("id", body.orderId);
     }
 
-    return NextResponse.json({ ok: true, status: statusText });
+    return NextResponse.json({
+      ok: true,
+      status: statusText,
+      orderNumber,
+    });
   } catch (err: any) {
     console.error(err);
-    return NextResponse.json({ detail: err?.message ?? "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { detail: err?.message ?? "Server error" },
+      { status: 500 }
+    );
   }
 }

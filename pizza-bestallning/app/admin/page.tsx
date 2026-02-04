@@ -7,6 +7,10 @@ import { MENU, type MenuItem as AppMenuItem } from "../kund/useCustomerOrder";
 type DbOrder = {
   id: string;
   created_at: string;
+
+  // ✅ ordernummer från viewn (start 51)
+  order_number: number | null;
+
   status: "Ny" | "Tillagas" | "Klar" | "Pending" | string;
   customer_name: string | null;
   customer_phone: string | null;
@@ -134,10 +138,8 @@ function StatusBadge({ status }: { status: DbOrder["status"] }) {
   const s = String(status ?? "");
   if (s === "Pending") return <Badge tone="pending">Pending</Badge>;
   if (s === "Ny" || s.startsWith("Ny ")) return <Badge tone="new">Ny</Badge>;
-  if (s === "Klar" || s.startsWith("Klar "))
-    return <Badge tone="done">Klar</Badge>;
-  if (s === "Tillagas" || s.startsWith("Tillagas"))
-    return <Badge tone="cooking">Tillagas</Badge>;
+  if (s === "Klar" || s.startsWith("Klar ")) return <Badge tone="done">Klar</Badge>;
+  if (s === "Tillagas" || s.startsWith("Tillagas")) return <Badge tone="cooking">Tillagas</Badge>;
   return <Badge tone="neutral">{s}</Badge>;
 }
 
@@ -212,10 +214,8 @@ function EtaSelect({
 
 function sortActiveOrders(list: DbOrder[]) {
   return [...list].sort((a, b) => {
-    const aDone =
-      String(a.status) === "Klar" || String(a.status).startsWith("Klar");
-    const bDone =
-      String(b.status) === "Klar" || String(b.status).startsWith("Klar");
+    const aDone = String(a.status) === "Klar" || String(a.status).startsWith("Klar");
+    const bDone = String(b.status) === "Klar" || String(b.status).startsWith("Klar");
     if (aDone !== bDone) return aDone ? 1 : -1;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
@@ -332,7 +332,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   const [colCount, setColCount] = useState(1);
 
-  // ✅ NYTT: meny/tillgänglighet via vår API (menu_availability)
+  // ✅ meny/tillgänglighet via vår API (menu_availability)
   const [availability, setAvailability] = useState<AvailabilityMap>({});
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [menuBusy, setMenuBusy] = useState(false);
@@ -427,9 +427,12 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         return;
       }
 
-      // uppdatera lokalt direkt
       setAvailability((prev) => ({ ...prev, [itemId]: isAvailable }));
-      setMenuMsg(isAvailable ? "✅ Produkten är aktiv igen" : "⛔ Produkten är markerad som slut");
+      setMenuMsg(
+        isAvailable
+          ? "✅ Produkten är aktiv igen"
+          : "⛔ Produkten är markerad som slut"
+      );
     } finally {
       setMenuBusy(false);
     }
@@ -440,19 +443,20 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     if (firstLoad) setLoading(true);
     else setRefreshing(true);
 
+    // ✅ Hämta från VIEW så vi får order_number
     const activeQ = supabase
-      .from("orders")
+      .from("orders_with_number")
       .select(
-        "id, created_at, status, customer_name, customer_phone, items, total, archived_at, paid_at"
+        "id, created_at, order_number, status, customer_name, customer_phone, items, total, archived_at, paid_at"
       )
       .is("archived_at", null)
       .not("paid_at", "is", null)
       .order("created_at", { ascending: false });
 
     const archivedQ = supabase
-      .from("orders")
+      .from("orders_with_number")
       .select(
-        "id, created_at, status, customer_name, customer_phone, items, total, archived_at, paid_at"
+        "id, created_at, order_number, status, customer_name, customer_phone, items, total, archived_at, paid_at"
       )
       .not("archived_at", "is", null)
       .not("paid_at", "is", null)
@@ -557,6 +561,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     fetchOrders();
     fetchAvailability();
 
+    // ✅ Lyssna på orders-tabellen (viewn triggar inte realtime)
     const ch = supabase
       .channel("orders-admin")
       .on(
@@ -638,8 +643,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                   <option value="">(Ingen meny hittades)</option>
                 ) : (
                   menuItems.map((it) => {
-                    const prefix =
-                      typeof it.no === "number" ? `${it.no}. ` : "";
+                    const prefix = typeof it.no === "number" ? `${it.no}. ` : "";
                     const status = it.is_available ? "🟢" : "🔴";
                     return (
                       <option key={it.id} value={it.id}>
@@ -726,9 +730,15 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
+                      {/* ✅ FIX: "Order #51 • 18:30" */}
                       <div className="text-sm text-slate-600">
                         <span className="font-semibold text-slate-800">
                           Order
+                          {typeof o.order_number === "number" ? (
+                            <span className="ml-1 font-extrabold text-slate-900">
+                              #{o.order_number}
+                            </span>
+                          ) : null}
                         </span>{" "}
                         <span className="text-slate-400">•</span> {time}
                       </div>
@@ -754,9 +764,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         Status
                       </div>
                       <StatusBadge status={o.status} />
-                      {hasAnyComment && (
-                        <Badge tone="comment">💬 Kommentar</Badge>
-                      )}
+                      {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
                       {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                     </div>
 
@@ -769,9 +777,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     </div>
 
                     <div className="mt-4 border-t border-slate-200 pt-3">
-                      <div className="font-semibold text-slate-900">
-                        Innehåll
-                      </div>
+                      <div className="font-semibold text-slate-900">Innehåll</div>
                       <ul className="mt-3 space-y-2">
                         {items.map((it, idx) => (
                           <li
