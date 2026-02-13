@@ -77,7 +77,7 @@ function Button({
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "success";
   type?: "button" | "submit";
   title?: string;
   disabled?: boolean;
@@ -92,6 +92,7 @@ function Button({
       "bg-white text-slate-900 ring-1 ring-slate-300 hover:bg-slate-50",
     danger: "bg-rose-600 text-white hover:bg-rose-700",
     ghost: "bg-transparent text-slate-700 hover:bg-slate-100",
+    success: "bg-emerald-600 text-white hover:bg-emerald-700",
   };
 
   return (
@@ -138,8 +139,10 @@ function StatusBadge({ status }: { status: DbOrder["status"] }) {
   const s = String(status ?? "");
   if (s === "Pending") return <Badge tone="pending">Pending</Badge>;
   if (s === "Ny" || s.startsWith("Ny ")) return <Badge tone="new">Ny</Badge>;
-  if (s === "Klar" || s.startsWith("Klar ")) return <Badge tone="done">Klar</Badge>;
-  if (s === "Tillagas" || s.startsWith("Tillagas")) return <Badge tone="cooking">Tillagas</Badge>;
+  if (s === "Klar" || s.startsWith("Klar "))
+    return <Badge tone="done">Klar</Badge>;
+  if (s === "Tillagas" || s.startsWith("Tillagas"))
+    return <Badge tone="cooking">Tillagas</Badge>;
   return <Badge tone="neutral">{s}</Badge>;
 }
 
@@ -214,8 +217,10 @@ function EtaSelect({
 
 function sortActiveOrders(list: DbOrder[]) {
   return [...list].sort((a, b) => {
-    const aDone = String(a.status) === "Klar" || String(a.status).startsWith("Klar");
-    const bDone = String(b.status) === "Klar" || String(b.status).startsWith("Klar");
+    const aDone =
+      String(a.status) === "Klar" || String(a.status).startsWith("Klar");
+    const bDone =
+      String(b.status) === "Klar" || String(b.status).startsWith("Klar");
     if (aDone !== bDone) return aDone ? 1 : -1;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
@@ -255,21 +260,19 @@ function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
-      <div className="mx-auto max-w-md px-6 py-12">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm">
-            <span className="text-2xl">🍕</span>
+      <div className="mx-auto max-w-md px-6 py-10">
+        <div className="mb-5 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm">
+            <span className="text-xl">🍕</span>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            Adminsida il-forno
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            Admin
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Logga in med PIN för att hantera beställningar.
-          </p>
+          <p className="mt-1 text-sm text-slate-600">Logga in med PIN.</p>
         </div>
 
         <Card className="p-6">
-          <label className="text-sm font-semibold text-slate-800">PIN-kod</label>
+          <label className="text-sm font-semibold text-slate-800">PIN</label>
           <input
             type="password"
             value={pin}
@@ -289,7 +292,7 @@ function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
                 onChange={(e) => setRemember(e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
               />
-              Kom ihåg mig på den här enheten
+              Kom ihåg
             </label>
           </div>
 
@@ -308,8 +311,8 @@ function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
           </Button>
         </Card>
 
-        <p className="mt-6 text-center text-xs text-slate-500">
-          Tips: Lägg gärna admin-URL:en som bokmärke på surfplatta i köket.
+        <p className="mt-5 text-center text-xs text-slate-500">
+          Tips: Spara admin-länken som bokmärke på iPad.
         </p>
       </div>
     </main>
@@ -341,8 +344,8 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     const compute = () => {
       const w = window.innerWidth;
-      if (w >= 1280) setColCount(3);
-      else if (w >= 768) setColCount(2);
+      if (w >= 1400) setColCount(3);
+      else if (w >= 900) setColCount(2);
       else setColCount(1);
     };
     compute();
@@ -363,7 +366,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   const menuItems: MenuPick[] = useMemo(() => {
     const list = (MENU as AppMenuItem[]).map((it) => {
-      const isAvail = availability[it.id] !== false; // saknas i DB => tillgänglig
+      const isAvail = availability[it.id] !== false;
       return {
         id: it.id,
         name: it.name,
@@ -373,7 +376,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       };
     });
 
-    // Sortera: nummer först om finns, annars alfabetiskt
     return list.sort((a, b) => {
       const an = typeof a.no === "number" ? a.no : 999999;
       const bn = typeof b.no === "number" ? b.no : 999999;
@@ -443,7 +445,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     if (firstLoad) setLoading(true);
     else setRefreshing(true);
 
-    // ✅ Hämta från VIEW så vi får order_number
     const activeQ = supabase
       .from("orders_with_number")
       .select(
@@ -561,7 +562,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     fetchOrders();
     fetchAvailability();
 
-    // ✅ Lyssna på orders-tabellen (viewn triggar inte realtime)
     const ch = supabase
       .channel("orders-admin")
       .on(
@@ -584,7 +584,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Se till att vi har ett valt item när listan finns
   useEffect(() => {
     if (!selectedItemId && menuItems.length > 0) {
       setSelectedItemId(menuItems[0].id);
@@ -594,116 +593,120 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
-      <div className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-5 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900">
-                Adminsida il-forno
-              </h1>
-              <p className="mt-1 text-sm text-slate-600">
-                {showArchive ? "Arkiverade ordrar" : "Aktiva ordrar"} • Betalda
-                ordrar
-              </p>
-            </div>
+      {/* ✅ MINSTA HEADER + knappar i högerkant */}
+      <div className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-3 py-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Läges-indikator: visar om man är i Arkiv */}
+            <span
+              className={cx(
+                "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold ring-1",
+                showArchive
+                  ? "bg-slate-100 text-slate-800 ring-slate-200"
+                  : "bg-emerald-50 text-emerald-900 ring-emerald-200"
+              )}
+              title={showArchive ? "Arkiv" : "Aktiva"}
+            >
+              {showArchive ? "ARKIV" : "AKTIVA"}
+            </span>
 
-            <div className="flex items-center gap-2">
+            {/* Produktval */}
+            <select
+              value={selectedItemId}
+              onChange={(e) => {
+                setSelectedItemId(e.target.value);
+                setMenuMsg("");
+              }}
+              className={cx(
+                "flex-1 min-w-[220px]",
+                "h-9 rounded-xl bg-white px-3 text-[13px] font-semibold text-slate-900",
+                "ring-1 ring-slate-300 hover:bg-slate-50",
+                "focus:outline-none focus:ring-2 focus:ring-amber-500"
+              )}
+            >
+              {menuItems.length === 0 ? (
+                <option value="">(Ingen meny hittades)</option>
+              ) : (
+                menuItems.map((it) => {
+                  const prefix = typeof it.no === "number" ? `${it.no}. ` : "";
+                  const status = it.is_available ? "🟢" : "🔴";
+                  return (
+                    <option key={it.id} value={it.id}>
+                      {status} {prefix}
+                      {it.name}
+                    </option>
+                  );
+                })
+              )}
+            </select>
+
+            {/* Slut/Aktivera nära select */}
+            <Button
+              variant="danger"
+              disabled={menuBusy || !selectedItemId || !selectedItem?.is_available}
+              onClick={() => setAvailabilityApi(selectedItemId, false)}
+              title="Gör produkten otillgänglig på kundsidan"
+              className="px-3 py-2 h-9"
+            >
+              Slut
+            </Button>
+
+            <Button
+              variant="success"
+              disabled={menuBusy || !selectedItemId || !!selectedItem?.is_available}
+              onClick={() => setAvailabilityApi(selectedItemId, true)}
+              title="Gör produkten tillgänglig igen"
+              className="px-3 py-2 h-9"
+            >
+              Aktivera
+            </Button>
+
+            {/* ✅ Skjut dessa längst till höger */}
+            <div className="ml-auto flex items-center gap-2">
               <Button
                 onClick={() => setShowArchive((s) => !s)}
                 variant="secondary"
+                className="px-3 py-2 h-9"
+                title={showArchive ? "Visa aktiva" : "Visa arkiv"}
               >
-                {showArchive ? "Visa aktiva" : "Visa arkiv"}
+                {showArchive ? "Aktiva" : "Arkiv"}
               </Button>
-              <Button onClick={onLogout} variant="secondary">
+
+              <Button
+                onClick={onLogout}
+                variant="secondary"
+                className="px-3 py-2 h-9"
+                title="Logga ut"
+              >
                 Logga ut
               </Button>
             </div>
           </div>
 
-          {/* ✅ Rullgardin för "slut"-produkter (scrollar automatiskt) */}
-          <div className="mt-3 grid gap-2 md:grid-cols-12 md:items-center">
-            <div className="md:col-span-6">
-              <div className="text-xs font-semibold text-slate-600">
-                Markera produkt som slut (syns på kundsidan)
+          {(menuMsg || (!loading && refreshing)) && (
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <div className="text-[12px] font-semibold text-slate-700">
+                {menuMsg ? menuMsg : null}
               </div>
-
-              <select
-                value={selectedItemId}
-                onChange={(e) => {
-                  setSelectedItemId(e.target.value);
-                  setMenuMsg("");
-                }}
-                className={cx(
-                  "mt-1 w-full rounded-xl bg-white px-3 py-2.5 text-sm font-semibold text-slate-900",
-                  "ring-1 ring-slate-300 hover:bg-slate-50",
-                  "focus:outline-none focus:ring-2 focus:ring-amber-500"
-                )}
-              >
-                {menuItems.length === 0 ? (
-                  <option value="">(Ingen meny hittades)</option>
-                ) : (
-                  menuItems.map((it) => {
-                    const prefix = typeof it.no === "number" ? `${it.no}. ` : "";
-                    const status = it.is_available ? "🟢" : "🔴";
-                    return (
-                      <option key={it.id} value={it.id}>
-                        {status} {prefix}
-                        {it.name}
-                      </option>
-                    );
-                  })
-                )}
-              </select>
-
-              <div className="mt-1 text-xs text-slate-500">
-                🟢 Tillgänglig • 🔴 Slut
-              </div>
-            </div>
-
-            <div className="md:col-span-6 flex flex-wrap gap-2 md:justify-end md:pt-5">
-              <Button
-                variant="danger"
-                disabled={menuBusy || !selectedItemId || !selectedItem?.is_available}
-                onClick={() => setAvailabilityApi(selectedItemId, false)}
-                title="Gör produkten otillgänglig på kundsidan"
-              >
-                Markera som slut
-              </Button>
-
-              <Button
-                variant="secondary"
-                disabled={menuBusy || !selectedItemId || !!selectedItem?.is_available}
-                onClick={() => setAvailabilityApi(selectedItemId, true)}
-                title="Gör produkten tillgänglig igen"
-              >
-                Aktivera igen
-              </Button>
-            </div>
-
-            {menuMsg && (
-              <div className="md:col-span-12 text-sm font-semibold text-slate-700">
-                {menuMsg}
-              </div>
-            )}
-          </div>
-
-          {!loading && (
-            <div
-              className={cx(
-                "mt-2 h-5 text-sm text-slate-500 transition-opacity",
-                refreshing ? "opacity-100" : "opacity-0"
+              {!loading && (
+                <div
+                  className={cx(
+                    "text-[12px] text-slate-500 transition-opacity",
+                    refreshing ? "opacity-100" : "opacity-0"
+                  )}
+                >
+                  Uppdaterar…
+                </div>
               )}
-            >
-              Uppdaterar…
             </div>
           )}
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-5 py-5">
-        <div className="flex gap-4">
+      <div className="mx-auto max-w-6xl px-4 py-4">
+        <div className="flex gap-3">
           {columns.map((col, colIdx) => (
-            <div key={colIdx} className="flex-1 flex flex-col gap-4">
+            <div key={colIdx} className="flex-1 flex flex-col gap-3">
               {col.map((o) => {
                 const items: { name: string; qty: number; comment?: string }[] =
                   Array.isArray(o.items) ? o.items : [];
@@ -730,7 +733,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      {/* ✅ FIX: "Order #51 • 18:30" */}
                       <div className="text-sm text-slate-600">
                         <span className="font-semibold text-slate-800">
                           Order
@@ -764,7 +766,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                         Status
                       </div>
                       <StatusBadge status={o.status} />
-                      {hasAnyComment && <Badge tone="comment">💬 Kommentar</Badge>}
+                      {hasAnyComment && (
+                        <Badge tone="comment">💬 Kommentar</Badge>
+                      )}
                       {eta ? <Badge tone="cooking">⏱ {eta}</Badge> : null}
                     </div>
 
@@ -777,7 +781,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
                     </div>
 
                     <div className="mt-4 border-t border-slate-200 pt-3">
-                      <div className="font-semibold text-slate-900">Innehåll</div>
+                      <div className="font-semibold text-slate-900">
+                        Innehåll
+                      </div>
                       <ul className="mt-3 space-y-2">
                         {items.map((it, idx) => (
                           <li
@@ -851,3 +857,4 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     </main>
   );
 }
+  
