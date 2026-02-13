@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { CATEGORY_ORDER, money, useCustomerOrder } from "./useCustomerOrder";
 import { Button, Card, cx, tagBadges } from "./ui";
+import { useMenuAvailability } from "./useMenuAvailability";
 
 export default function CustomerDesktop() {
   const {
@@ -24,6 +25,14 @@ export default function CustomerDesktop() {
     clearCart,
     goToCheckout,
   } = useCustomerOrder();
+
+  // ✅ NYTT: hämta "slut/tillgänglig" från admin
+  const { availability } = useMenuAvailability();
+
+  function isAvailableNow(itemId: string) {
+    // saknas i DB => tillgänglig
+    return availability[itemId] !== false;
+  }
 
   const cartSummaryParts = useMemo(() => {
     if (!cartLines.length) return [];
@@ -200,11 +209,15 @@ export default function CustomerDesktop() {
                 <ul className="space-y-3">
                   {filteredMenu.map((item) => {
                     const count = qtyById[item.id] ?? 0;
+                    const availableNow = isAvailableNow(item.id);
 
                     return (
                       <li
                         key={item.id}
-                        className="rounded-2xl bg-white p-5 ring-1 ring-slate-200"
+                        className={cx(
+                          "rounded-2xl p-5 ring-1 ring-slate-200",
+                          availableNow ? "bg-white" : "bg-slate-50 opacity-70"
+                        )}
                       >
                         <div className="flex items-start justify-between gap-4">
                           {/* Info */}
@@ -215,9 +228,16 @@ export default function CustomerDesktop() {
                                   {item.no}
                                 </span>
                               ) : null}
+
                               <div className="text-base font-extrabold text-slate-900 truncate tracking-[-0.01em]">
                                 {item.name}
                               </div>
+
+                              {!availableNow && (
+                                <span className="shrink-0 inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-extrabold text-rose-800 ring-1 ring-rose-200">
+                                  Ej tillgänglig
+                                </span>
+                              )}
                             </div>
 
                             {item.desc ? (
@@ -255,9 +275,24 @@ export default function CustomerDesktop() {
                               </div>
 
                               <button
-                                onClick={() => addToCart(item.id)}
-                                className="h-10 w-10 rounded-xl bg-amber-600 text-white hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 active:scale-[0.98] transition"
+                                onClick={() => {
+                                  if (!availableNow) return;
+                                  addToCart(item.id);
+                                }}
+                                disabled={!availableNow}
+                                className={cx(
+                                  "h-10 w-10 rounded-xl text-white transition active:scale-[0.98]",
+                                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
+                                  availableNow
+                                    ? "bg-amber-600 hover:bg-amber-700"
+                                    : "bg-slate-300 cursor-not-allowed"
+                                )}
                                 aria-label={`Lägg till en ${item.name}`}
+                                title={
+                                  availableNow
+                                    ? `Lägg till ${item.name}`
+                                    : "Produkten är ej tillgänglig just nu"
+                                }
                               >
                                 +
                               </button>
@@ -307,51 +342,74 @@ export default function CustomerDesktop() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {cartLines.map((line) => (
-                      <div
-                        key={line.uid}
-                        className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-extrabold text-slate-900 tracking-[-0.01em]">
-                              {line.item.name}
+                    {cartLines.map((line) => {
+                      const availableNow = isAvailableNow(line.itemId);
+                      const isFree = line.item.price === 0;
+
+                      return (
+                        <div
+                          key={line.uid}
+                          className={cx(
+                            "rounded-2xl p-4 ring-1 ring-slate-200",
+                            !availableNow && !isFree ? "bg-rose-50/40" : "bg-white"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <div className="font-extrabold text-slate-900 tracking-[-0.01em]">
+                                  {line.item.name}
+                                </div>
+
+                                {!availableNow && !isFree && (
+                                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-extrabold text-rose-800 ring-1 ring-rose-200">
+                                    Ej tillgänglig
+                                  </span>
+                                )}
+
+                                {isFree && (
+                                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-900 ring-1 ring-emerald-200">
+                                    Ingår
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="mt-0.5 text-sm text-slate-600 tabular-nums">
+                                {line.item.price === 0 ? "Gratis" : money(line.item.price)}
+                              </div>
                             </div>
-                            <div className="mt-0.5 text-sm text-slate-600 tabular-nums">
-                              {money(line.item.price)}
-                            </div>
+
+                            <Button
+                              variant="ghost"
+                              onClick={() => removeLine(line.uid)}
+                              className="px-3"
+                              title="Ta bort raden"
+                            >
+                              Ta bort
+                            </Button>
                           </div>
 
-                          <Button
-                            variant="ghost"
-                            onClick={() => removeLine(line.uid)}
-                            className="px-3"
-                            title="Ta bort raden"
-                          >
-                            Ta bort
-                          </Button>
+                          <div className="mt-3">
+                            <label className="text-xs font-bold text-slate-700">
+                              Kommentar
+                            </label>
+                            <input
+                              value={line.comment}
+                              onChange={(e) =>
+                                setLineComment(line.uid, e.target.value)
+                              }
+                              placeholder="Ex: utan lök"
+                              className={cx(
+                                "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
+                                "ring-1 ring-slate-300 placeholder:text-slate-400",
+                                "focus:outline-none focus:ring-2 focus:ring-amber-500",
+                                "tracking-[-0.01em]"
+                              )}
+                            />
+                          </div>
                         </div>
-
-                        <div className="mt-3">
-                          <label className="text-xs font-bold text-slate-700">
-                            Kommentar
-                          </label>
-                          <input
-                            value={line.comment}
-                            onChange={(e) =>
-                              setLineComment(line.uid, e.target.value)
-                            }
-                            placeholder="Ex: utan lök"
-                            className={cx(
-                              "mt-1 w-full rounded-2xl bg-white px-4 py-2 text-base text-slate-900",
-                              "ring-1 ring-slate-300 placeholder:text-slate-400",
-                              "focus:outline-none focus:ring-2 focus:ring-amber-500",
-                              "tracking-[-0.01em]"
-                            )}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 

@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// 🔥 Tvinga dynamisk route (ingen cache)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 /**
@@ -23,16 +26,25 @@ export async function GET() {
     console.error("GET menu_availability error:", error);
     return NextResponse.json(
       { error: "Kunde inte hämta tillgänglighet." },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      }
     );
   }
 
   const map: Record<string, boolean> = {};
+
   for (const row of data ?? []) {
     map[row.item_id] = Boolean(row.available);
   }
 
-  return NextResponse.json(map, { status: 200 });
+  return NextResponse.json(map, {
+    status: 200,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+    },
+  });
 }
 
 /**
@@ -47,10 +59,17 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   let body: any = null;
+
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Ogiltig JSON." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Ogiltig JSON." },
+      {
+        status: 400,
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      }
+    );
   }
 
   const itemId = String(body?.itemId ?? "").trim();
@@ -59,7 +78,10 @@ export async function POST(req: Request) {
   if (!itemId) {
     return NextResponse.json(
       { error: "itemId saknas." },
-      { status: 400 }
+      {
+        status: 400,
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      }
     );
   }
 
@@ -77,9 +99,18 @@ export async function POST(req: Request) {
     console.error("POST menu_availability error:", error);
     return NextResponse.json(
       { error: "Kunde inte uppdatera tillgänglighet." },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      }
     );
   }
 
-  return NextResponse.json({ ok: true, itemId, available }, { status: 200 });
+  return NextResponse.json(
+    { ok: true, itemId, available },
+    {
+      status: 200,
+      headers: { "Cache-Control": "no-store, max-age=0" },
+    }
+  );
 }
